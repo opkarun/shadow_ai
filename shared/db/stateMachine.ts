@@ -30,7 +30,7 @@ export async function transitionCommitmentStatus(
     throw new Error(`Commitment not found: ${commitmentId}`);
   }
 
-  const allowedNextStatuses = commitmentStatusTransitions[existing.status];
+  const allowedNextStatuses = commitmentStatusTransitions[existing.status] as readonly CommitmentStatus[];
 
   if (!allowedNextStatuses.includes(nextStatus)) {
     throw new Error(`Invalid commitment status transition: ${existing.status} -> ${nextStatus}`);
@@ -57,5 +57,5 @@ export async function transitionCommitmentStatus(
     timestamp: now
   });
 
-  return updated as Commitment;
+  return updated as unknown as Commitment;
 }
