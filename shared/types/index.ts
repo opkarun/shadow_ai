@@ -94,6 +94,7 @@ export interface CommunicationDraft {
   created_at: Date;
   sent_at: Date | null;
   final_sent_content: string | null;
+  snoozed_until: Date | null;
 }
 
 export interface Integration {
