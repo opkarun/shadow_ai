@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ES2022",
+    "moduleResolution": "node",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "strict": true,
@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["vitest/globals"]
   },
   "include": ["shared/**/*.ts", "detection/**/*.ts", "verification/**/*.ts", "communication/**/*.ts", "dashboard/**/*.ts", "dashboard/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
