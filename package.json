@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch dashboard/server.ts",
+    "dev": "node --require dotenv/config scripts/dev.mjs",
+    "dev:backend": "tsx watch --clear-screen backend/server.ts",
+    "dev:frontend": "vite --config dashboard/vite.config.ts --port 5173 --host",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "eslint ."

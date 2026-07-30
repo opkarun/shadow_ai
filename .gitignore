@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+.vite/
+dashboard/.vite/
+dashboard/vite.config.ts.timestamp-*.mjs
+*.timestamp-*.mjs
