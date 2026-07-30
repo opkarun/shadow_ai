@@ -8,7 +8,7 @@
  */
 
 import React, { useMemo, useCallback, useState } from "react";
-import type { Commitment } from "../../shared/types";
+import type { Commitment } from "../../shared/types/index.js";
 import { useDashboardStore } from "../store";
 import {
   useFetchCommitments,
@@ -46,14 +46,19 @@ function filterCommitmentsByView(
   switch (view) {
     case "PENDING":
       return commitments.filter(
-        (c) => c.status === "PENDING" && c.deadline && new Date(c.deadline) > now
+        (c) =>
+          c.status !== "COMPLETED" &&
+          c.status !== "DISMISSED" &&
+          c.status !== "OVERDUE" &&
+          (!c.deadline || new Date(c.deadline) > now)
       );
 
     case "UPCOMING":
       const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       return commitments.filter(
         (c) =>
-          c.status === "PENDING" &&
+          c.status !== "COMPLETED" &&
+          c.status !== "DISMISSED" &&
           c.deadline &&
           new Date(c.deadline) > now &&
           new Date(c.deadline) <= sevenDaysFromNow
@@ -63,7 +68,8 @@ function filterCommitmentsByView(
       return commitments.filter(
         (c) =>
           (c.status === "OVERDUE" || (c.deadline && new Date(c.deadline) <= now)) &&
-          c.status !== "COMPLETED"
+          c.status !== "COMPLETED" &&
+          c.status !== "DISMISSED"
       );
 
     case "COMPLETED":
@@ -71,7 +77,7 @@ function filterCommitmentsByView(
 
     case "ALL":
     default:
-      return commitments;
+      return commitments.filter((c) => c.status !== "DISMISSED");
   }
 }
 
@@ -134,7 +140,7 @@ export function Dashboard(): JSX.Element {
       UPCOMING: filterCommitmentsByView(commitments, "UPCOMING").length,
       OVERDUE: filterCommitmentsByView(commitments, "OVERDUE").length,
       COMPLETED: filterCommitmentsByView(commitments, "COMPLETED").length,
-      ALL: commitments.length,
+      ALL: filterCommitmentsByView(commitments, "ALL").length,
     };
   }, [commitments]);
 

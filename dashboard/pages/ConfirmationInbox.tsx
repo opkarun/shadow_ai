@@ -5,9 +5,10 @@
  * Allows users to quickly confirm or dismiss suspected commitments.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { useDashboardStore } from "../store";
 import { useFetchConfirmationInbox } from "../hooks/useDashboardData";
+import { dashboardApi } from "../services/api";
 import { LoadingSkeleton, SkeletonHeader } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Card } from "../components/Card";
@@ -23,7 +24,34 @@ import {
 } from "../components/Icons";
 
 export function ConfirmationInbox(): JSX.Element {
-  const { confirmationItems, isLoading, error } = useDashboardStore();
+  const { confirmationItems, isLoading, error, setConfirmationItems } = useDashboardStore();
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  const handleConfirmCommitment = async (commitmentId: string) => {
+    setActionInProgress(commitmentId);
+    try {
+      await dashboardApi.confirmCommitment(commitmentId);
+      setConfirmationItems(confirmationItems.filter((item) => item.commitment.id !== commitmentId));
+    } catch (err) {
+      console.error("Error confirming commitment:", err);
+      alert("Failed to confirm commitment");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDismissCommitment = async (commitmentId: string) => {
+    setActionInProgress(commitmentId);
+    try {
+      await dashboardApi.dismissCommitment(commitmentId);
+      setConfirmationItems(confirmationItems.filter((item) => item.commitment.id !== commitmentId));
+    } catch (err) {
+      console.error("Error dismissing commitment:", err);
+      alert("Failed to dismiss commitment");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
 
   useFetchConfirmationInbox();
 
@@ -142,18 +170,20 @@ export function ConfirmationInbox(): JSX.Element {
                     size="sm"
                     variant="primary"
                     icon={<IconCheck className="w-4 h-4" />}
-                    onClick={() => alert(`Confirmed commitment: ${item.commitment.title}`)}
+                    onClick={() => handleConfirmCommitment(item.commitment.id)}
+                    disabled={actionInProgress === item.commitment.id}
                   >
-                    Confirm Commitment
+                    {actionInProgress === item.commitment.id ? "Confirming..." : "Confirm Commitment"}
                   </Button>
 
                   <Button
                     size="sm"
                     variant="ghost"
                     icon={<IconClose className="w-4 h-4" />}
-                    onClick={() => alert(`Dismissed detection`)}
+                    onClick={() => handleDismissCommitment(item.commitment.id)}
+                    disabled={actionInProgress === item.commitment.id}
                   >
-                    Not a Commitment
+                    {actionInProgress === item.commitment.id ? "Dismissing..." : "Not a Commitment"}
                   </Button>
                 </div>
               </div>

@@ -3,11 +3,6 @@
  *
  * Main React application entry point for the Shadow dashboard.
  * Provides the shell layout (navigation, sidebar) and renders page content based on routing.
- *
- * Inputs: shared Commitment, Evidence, Draft, Integration, CalendarEvent, and AuditLogEntry data via BFF routes.
- * Output: the React dashboard with multiple pages and views.
- *
- * PRODUCT_SPEC.md Section 22 defines screens.
  */
 
 import React, { useMemo, useEffect } from "react";
@@ -24,16 +19,6 @@ import { OAuthSuccess } from "./pages/OAuthSuccess";
 import { OAuthError } from "./pages/OAuthError";
 import "./globals.css";
 
-const PAGE_TITLES: Record<string, string> = {
-  dashboard: "Dashboard",
-  "approval-queue": "Approval Queue",
-  confirmations: "Confirmation Inbox",
-  notifications: "Notifications",
-  history: "History & Archive",
-  analytics: "Analytics",
-  settings: "Settings",
-};
-
 export function App(): JSX.Element {
   const currentPage = useCurrentPage();
   const navigate = useRouter((state) => state.navigate);
@@ -45,17 +30,9 @@ export function App(): JSX.Element {
     } else if (path === "/oauth-error") {
       navigate("oauth-error");
     }
-  }, []);
+  }, [navigate]);
 
-  // Full-screen pages (no shell)
-  if (currentPage === "oauth-success") {
-    return <OAuthSuccess />;
-  }
-
-  if (currentPage === "oauth-error") {
-    return <OAuthError />;
-  }
-
+  // ALL HOOKS MUST BE DECLARED UNCONDITIONALLY AT THE TOP
   const pageContent = useMemo(() => {
     switch (currentPage) {
       case "dashboard":
@@ -79,6 +56,15 @@ export function App(): JSX.Element {
         return <Dashboard />;
     }
   }, [currentPage]);
+
+  // Full-screen pages (no shell) - Render after all hooks have run
+  if (currentPage === "oauth-success") {
+    return <OAuthSuccess />;
+  }
+
+  if (currentPage === "oauth-error") {
+    return <OAuthError />;
+  }
 
   return (
     <DashboardShell>

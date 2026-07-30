@@ -15,6 +15,6 @@
     "outDir": "dist",
     "types": ["vitest/globals"]
   },
-  "include": ["shared/**/*.ts", "detection/**/*.ts", "verification/**/*.ts", "communication/**/*.ts", "dashboard/**/*.ts", "dashboard/**/*.tsx"],
+  "include": ["shared/**/*.ts", "detection/**/*.ts", "verification/**/*.ts", "communication/**/*.ts", "dashboard/**/*.ts", "dashboard/**/*.tsx", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

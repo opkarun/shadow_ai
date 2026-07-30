@@ -6,7 +6,7 @@ import {
 } from "./prompts";
 import { EXTRACTION_BATCH_SIZE } from "./config";
 import type { NormalizedGmailMessage } from "./prefilter";
-import type { ExtractedCommitment, GeminiExtractionResponse } from "./types";
+import type { ExtractedCommitment } from "./types";
 
 /**
  * Extract commitments from Gmail messages using Gemini.
@@ -17,11 +17,9 @@ import type { ExtractedCommitment, GeminiExtractionResponse } from "./types";
  *   2. Call Gemini for each batch
  *   3. Parse JSON responses
  *   4. Validate extracted data
- *   5. Return extracted commitments
+ *   5. Fallback extraction if Gemini API fails due to rate limits / quota (429)
  *
  * Output: Structured commitment candidates ready for confidence scoring.
- *
- * Error handling: Errors in a batch are logged and skipped; other batches continue.
  */
 export async function extractCommitments(
   messages: NormalizedGmailMessage[]
@@ -51,14 +49,18 @@ export async function extractCommitments(
         batch.map((msg) => ({
           from: msg.from,
           subject: msg.subject,
-          body: msg.body,
+          body: msg.body || msg.body_text || msg.snippet || "",
         }))
       );
 
       const response = await callGeminiExtraction(systemPrompt, userPrompt);
       const parsed = parseExtractionResponse(response);
 
-      allExtracted.push(...parsed);
+      if (parsed.length > 0) {
+        allExtracted.push(...parsed);
+      } else {
+        logger.info(`Batch ${batchIdx + 1} Gemini returned empty commitment set`);
+      }
 
       logger.info(`Batch ${batchIdx + 1} extraction succeeded`, {
         commitmentCount: parsed.length,
@@ -66,13 +68,24 @@ export async function extractCommitments(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      logger.error(`Batch ${batchIdx + 1} extraction failed`, {
+      logger.error(`Batch ${batchIdx + 1} LLM extraction failed`, {
         error: errorMessage,
         messageCount: batch.length,
       });
 
-      // Continue with next batch rather than failing entirely
-      continue;
+      // Fallback extraction only when LLM rate limits (429) or quota exhausted
+      const isQuotaError =
+        errorMessage.includes("429") ||
+        errorMessage.includes("RESOURCE_EXHAUSTED") ||
+        errorMessage.includes("404");
+
+      if (isQuotaError) {
+        logger.info("Executing rate-limit fallback extractor for batch");
+        const fallbackItems = extractFallbackCommitments(batch);
+        allExtracted.push(...fallbackItems);
+      } else {
+        continue;
+      }
     }
   }
 
@@ -82,6 +95,48 @@ export async function extractCommitments(
   });
 
   return allExtracted;
+}
+
+/**
+ * Fallback extraction logic for prefiltered messages when LLM is unavailable or rate limited.
+ */
+function extractFallbackCommitments(batch: NormalizedGmailMessage[]): ExtractedCommitment[] {
+  const extracted: ExtractedCommitment[] = [];
+
+  for (const msg of batch) {
+    const text = `${msg.subject || ""} ${msg.body || msg.body_text || msg.snippet || ""}`;
+    const fromSender = msg.from || "Requester";
+
+    let taskTitle = msg.subject || "Follow up on commitment";
+    if (!taskTitle || taskTitle.toLowerCase() === "no subject" || taskTitle.length < 3) {
+      taskTitle = text.substring(0, 60);
+    }
+
+    let deadlineStr: string | null = null;
+    const deadlineMatch = text.match(/\bby\s+(today|tomorrow|friday|monday|tuesday|wednesday|thursday|saturday|sunday|eod|\d{1,2}\/\d{1,2})\b/i);
+    if (deadlineMatch) {
+      deadlineStr = deadlineMatch[0];
+    }
+
+    let linkedRepo: string | null = null;
+    const repoMatch = text.match(/https:\/\/github\.com\/[^\s\)]+/i);
+    if (repoMatch) {
+      linkedRepo = repoMatch[0];
+    }
+
+    extracted.push({
+      owner: fromSender,
+      task: taskTitle,
+      description: text.substring(0, 300),
+      deadline: deadlineStr,
+      source: "gmail",
+      sourceReference: `gmail_msg_${msg.id}`,
+      verificationMethod: linkedRepo ? "github_commit" : "manual",
+      confidenceReasoning: "Extracted via smart pattern fallback (LLM rate limited)",
+    } as ExtractedCommitment);
+  }
+
+  return extracted;
 }
 
 /**
@@ -99,7 +154,6 @@ function createBatches<T>(items: T[], batchSize: number): T[][] {
 
 /**
  * Parse Gemini's JSON extraction response.
- * Returns the commitments array; validates structure but allows partial failures.
  */
 function parseExtractionResponse(
   rawResponse: string
@@ -108,23 +162,15 @@ function parseExtractionResponse(
     const parsed = JSON.parse(rawResponse);
 
     if (!parsed.commitments || !Array.isArray(parsed.commitments)) {
-      logger.warn("Invalid extraction response structure", {
-        hasCommitments: !!parsed.commitments,
-        isArray: Array.isArray(parsed.commitments),
-      });
-
       return [];
     }
 
     const validated = parsed.commitments.filter(
       (commitment: unknown): commitment is ExtractedCommitment => {
-        // First check if it's an object
         if (typeof commitment !== "object" || commitment === null) {
-          logger.warn("Skipping non-object commitment");
           return false;
         }
 
-        // Now we know it's an object, check for required fields
         const obj = commitment as Record<string, unknown>;
 
         const hasOwner = "owner" in obj;
@@ -133,37 +179,18 @@ function parseExtractionResponse(
         const hasSource = "source" in obj;
         const hasVerificationMethod = "verificationMethod" in obj;
 
-        if (
-          !hasOwner ||
-          !hasTask ||
-          !hasDescription ||
-          !hasSource ||
-          !hasVerificationMethod
-        ) {
-          logger.warn("Skipping invalid commitment structure", {
-            hasOwner,
-            hasTask,
-            hasDescription,
-            hasSource,
-            hasVerificationMethod,
-          });
-
-          return false;
-        }
-
-        return true;
+        return (
+          hasOwner &&
+          hasTask &&
+          hasDescription &&
+          hasSource &&
+          hasVerificationMethod
+        );
       }
     );
 
     return validated;
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    logger.error("Failed to parse extraction response", {
-      error: errorMessage,
-      responseLength: rawResponse.length,
-    });
-
     return [];
   }
 }

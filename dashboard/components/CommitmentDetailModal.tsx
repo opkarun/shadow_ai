@@ -5,8 +5,8 @@
  * timeline, and actions.
  */
 
-import React from "react";
-import type { Commitment } from "../../shared/types";
+import React, { useState } from "react";
+import type { Commitment } from "../../shared/types/index.js";
 import {
   IconClose,
   IconCalendar,
@@ -21,6 +21,8 @@ import {
 } from "./Icons";
 import { Button } from "./Button";
 import { Badge } from "./Badge";
+import { dashboardApi } from "../services/api";
+import { useRefreshDashboard } from "../hooks/useDashboardData";
 
 interface CommitmentDetailModalProps {
   commitment: Commitment | null;
@@ -31,6 +33,9 @@ export function CommitmentDetailModal({
   commitment,
   onClose,
 }: CommitmentDetailModalProps): JSX.Element | null {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const refreshDashboard = useRefreshDashboard();
+
   if (!commitment) return null;
 
   const now = new Date();
@@ -38,6 +43,19 @@ export function CommitmentDetailModal({
   const daysRemaining = deadline
     ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null;
+
+  const handleMarkComplete = async () => {
+    try {
+      setIsSubmitting(true);
+      await dashboardApi.markCommitmentComplete(commitment.id);
+      await refreshDashboard();
+      onClose();
+    } catch (err) {
+      console.error("Failed to mark complete:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-950/80 backdrop-blur-sm animate-fade-in">
@@ -135,14 +153,14 @@ export function CommitmentDetailModal({
             </div>
           </div>
 
-          {/* Source Context */}
+          {/* Description Detail */}
           <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 space-y-2">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
               <IconFileText className="w-4 h-4 text-indigo-400" />
-              <span>Extracted Source Channel</span>
+              <span>Full Description</span>
             </h4>
-            <p className="text-sm text-slate-200">
-              Originating from <span className="font-semibold text-indigo-300">{commitment.source}</span> integration.
+            <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
+              {commitment.description}
             </p>
           </div>
 
@@ -168,17 +186,17 @@ export function CommitmentDetailModal({
           <Button variant="secondary" size="sm" onClick={onClose}>
             Close
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<IconCheck className="w-4 h-4" />}
-            onClick={() => {
-              alert(`Marking commitment "${commitment.title}" as completed`);
-              onClose();
-            }}
-          >
-            Mark Completed
-          </Button>
+          {commitment.status !== "COMPLETED" && (
+            <Button
+              variant="primary"
+              size="sm"
+              isLoading={isSubmitting}
+              icon={<IconCheck className="w-4 h-4" />}
+              onClick={handleMarkComplete}
+            >
+              Mark Completed
+            </Button>
+          )}
         </div>
       </div>
     </div>

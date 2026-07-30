@@ -155,7 +155,7 @@ export function Settings(): JSX.Element {
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="primary" size="sm" onClick={() => alert("Notification settings saved!")}>
+              <Button variant="primary" size="sm" disabled title="Coming soon">
                 Save Changes
               </Button>
             </div>
@@ -206,7 +206,7 @@ export function Settings(): JSX.Element {
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="primary" size="sm" onClick={() => alert("Risk settings updated!")}>
+              <Button variant="primary" size="sm" disabled title="Coming soon">
                 Save Risk Thresholds
               </Button>
             </div>
@@ -304,7 +304,7 @@ export function Settings(): JSX.Element {
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="primary" size="sm" onClick={() => alert("Profile saved!")}>
+              <Button variant="primary" size="sm" disabled title="Coming soon">
                 Save Profile
               </Button>
             </div>

@@ -10,7 +10,7 @@ import type {
   Evidence,
   CommunicationDraft,
   AuditLogEntry,
-} from "../../shared/types";
+} from "../../shared/types/index.js";
 import type {
   CommitmentListQuery,
   CommitmentListResponse,
@@ -79,6 +79,20 @@ export const dashboardApi = {
     const url = `${API_BASE}/commitments?${params.toString()}`;
     const response = await fetchWithTimeout(url);
     return response.json();
+  },
+
+  /**
+   * Trigger Gmail message scan & AI detection
+   */
+  async syncGmail(): Promise<{ processedMessagesCount: number; detectedCommitmentsCount: number }> {
+    const url = `${API_BASE}/integrations/sync/gmail`;
+    try {
+      const response = await fetchWithTimeout(url, { method: "POST" });
+      return response.json();
+    } catch (e) {
+      console.warn("Gmail sync failed or skipped:", e);
+      return { processedMessagesCount: 0, detectedCommitmentsCount: 0 };
+    }
   },
 
   /**

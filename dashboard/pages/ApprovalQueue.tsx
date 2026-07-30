@@ -5,9 +5,10 @@
  * Allows users to approve, edit, discard, or snooze drafts.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useDashboardStore } from "../store";
 import { useFetchApprovalQueue } from "../hooks/useDashboardData";
+import { dashboardApi } from "../services/api";
 import { LoadingSkeleton, SkeletonHeader } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Card } from "../components/Card";
@@ -23,7 +24,51 @@ import {
 } from "../components/Icons";
 
 export function ApprovalQueue(): JSX.Element {
-  const { approvalQueue, isLoading, error } = useDashboardStore();
+  const { approvalQueue, isLoading, error, setApprovalQueue } = useDashboardStore();
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  const handleApproveDraft = async (draftId: string) => {
+    setActionInProgress(draftId);
+    try {
+      await dashboardApi.approveDraft(draftId);
+      // Remove the draft from the queue after successful approval
+      setApprovalQueue(approvalQueue.filter((item) => item.draft.id !== draftId));
+    } catch (err) {
+      console.error("Error approving draft:", err);
+      alert("Failed to approve draft");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDiscardDraft = async (draftId: string) => {
+    setActionInProgress(draftId);
+    try {
+      await dashboardApi.discardDraft(draftId);
+      // Remove the draft from the queue after successful discard
+      setApprovalQueue(approvalQueue.filter((item) => item.draft.id !== draftId));
+    } catch (err) {
+      console.error("Error discarding draft:", err);
+      alert("Failed to discard draft");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleSnoozeDraft = async (draftId: string) => {
+    setActionInProgress(draftId);
+    try {
+      // Snooze for 1 hour (3600000 ms)
+      await dashboardApi.snoozeDraft(draftId, 3600000);
+      // Remove the draft from the queue after snoozing
+      setApprovalQueue(approvalQueue.filter((item) => item.draft.id !== draftId));
+    } catch (err) {
+      console.error("Error snoozing draft:", err);
+      alert("Failed to snooze draft");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
 
   useFetchApprovalQueue();
 
@@ -146,16 +191,18 @@ export function ApprovalQueue(): JSX.Element {
                             size="sm"
                             variant="primary"
                             icon={<IconCheck className="w-4 h-4" />}
-                            onClick={() => alert(`Approved draft for ${item.commitment.title}`)}
+                            onClick={() => handleApproveDraft(item.draft.id)}
+                            disabled={actionInProgress === item.draft.id}
                           >
-                            Approve & Send
+                            {actionInProgress === item.draft.id ? "Approving..." : "Approve & Send"}
                           </Button>
 
                           <Button
                             size="sm"
                             variant="secondary"
                             icon={<IconEdit className="w-4 h-4" />}
-                            onClick={() => alert(`Opening editor for draft ${item.draft.id}`)}
+                            disabled={true}
+                            title="Edit functionality coming soon"
                           >
                             Edit Draft
                           </Button>
@@ -164,18 +211,20 @@ export function ApprovalQueue(): JSX.Element {
                             size="sm"
                             variant="amber"
                             icon={<IconClock className="w-4 h-4" />}
-                            onClick={() => alert(`Snoozed draft`)}
+                            onClick={() => handleSnoozeDraft(item.draft.id)}
+                            disabled={actionInProgress === item.draft.id}
                           >
-                            Snooze
+                            {actionInProgress === item.draft.id ? "Snoozing..." : "Snooze"}
                           </Button>
 
                           <Button
                             size="sm"
                             variant="danger"
                             icon={<IconClose className="w-4 h-4" />}
-                            onClick={() => alert(`Discarded draft`)}
+                            onClick={() => handleDiscardDraft(item.draft.id)}
+                            disabled={actionInProgress === item.draft.id}
                           >
-                            Discard
+                            {actionInProgress === item.draft.id ? "Discarding..." : "Discard"}
                           </Button>
                         </div>
                       </div>

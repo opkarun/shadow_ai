@@ -63,7 +63,7 @@ export function NotificationCenter(): JSX.Element {
           </p>
         </div>
 
-        <Button variant="secondary" size="sm" onClick={() => alert("All notifications marked read")}>
+        <Button variant="secondary" size="sm" disabled title="Coming soon">
           Mark All Read
         </Button>
       </div>

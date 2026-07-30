@@ -9,7 +9,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { dashboardApi } from "../services/api";
 import { useDashboardStore } from "../store";
 import type { CommitmentListQuery } from "../types";
-import type { Commitment } from "../../shared/types";
+import type { Commitment } from "../../shared/types/index.js";
 
 /**
  * Parse and validate API commitment response.
@@ -86,7 +86,6 @@ export function useFetchCommitments(query?: CommitmentListQuery): void {
         const response = await dashboardApi.getCommitments(query);
 
         if (isMountedRef.current) {
-          // Parse and validate commitments - they come directly from API, not wrapped
           const parsedCommitments = response.commitments.map(parseCommitment);
           setCommitments(parsedCommitments);
           setLastSyncedAt(new Date());
@@ -267,7 +266,6 @@ export function useFetchNotifications(): void {
         const response = await dashboardApi.getNotifications();
 
         if (isMountedRef.current) {
-          // Parse notifications and convert timestamp strings to Date objects
           const parsedNotifications = response.notifications.map((n: any) => ({
             ...n,
             timestamp: n.timestamp ? new Date(n.timestamp) : new Date(),
@@ -298,7 +296,7 @@ export function useFetchNotifications(): void {
 }
 
 /**
- * Hook to refresh all dashboard data
+ * Hook to refresh all dashboard data (triggers Gmail scan + fetches latest store items)
  */
 export function useRefreshDashboard(): () => Promise<void> {
   const setLoading = useDashboardStore((s) => s.setLoading);
@@ -314,6 +312,9 @@ export function useRefreshDashboard(): () => Promise<void> {
     try {
       setLoading(true);
       setError(null);
+
+      // Trigger real-time Gmail scan
+      await dashboardApi.syncGmail();
 
       // Fetch all data in parallel
       const [commitmentResponse, stats, approvalQueue, confirmations, notifications] =
