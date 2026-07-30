@@ -1,12 +1,12 @@
 /**
  * Button Component
  *
- * Reusable button component with multiple variants and sizes.
+ * Reusable button component with multiple variants, sizes, and SVG support.
  */
 
 import React, { ReactNode, ButtonHTMLAttributes } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "amber";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -25,16 +25,22 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
-  primary: "bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 shadow-sm",
-  secondary: "bg-slate-800/50 text-slate-200 border border-slate-700/50 hover:bg-slate-800 hover:border-slate-600/50 active:bg-slate-700",
-  ghost: "text-slate-400 hover:text-slate-300 hover:bg-slate-800/30 active:bg-slate-800/50",
-  danger: "bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600/30 active:bg-red-600/40",
+  primary:
+    "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95",
+  secondary:
+    "bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/80 hover:border-slate-600 active:scale-95",
+  ghost:
+    "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent active:scale-95",
+  danger:
+    "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 active:scale-95",
+  amber:
+    "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 active:scale-95",
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-sm",
-  md: "px-4 py-2.5 text-base",
-  lg: "px-6 py-3 text-lg",
+  sm: "px-3 py-1.5 text-xs font-semibold rounded-lg gap-1.5",
+  md: "px-4 py-2.5 text-sm font-semibold rounded-xl gap-2",
+  lg: "px-6 py-3 text-base font-bold rounded-xl gap-2.5",
 };
 
 export function Button({
@@ -51,9 +57,9 @@ export function Button({
     <button
       disabled={isLoading || disabled}
       className={`
-        inline-flex items-center justify-center gap-2
-        rounded-lg font-medium transition-smooth cursor-pointer
-        disabled:opacity-50 disabled:cursor-not-allowed
+        inline-flex items-center justify-center
+        transition-all duration-200 cursor-pointer outline-none select-none
+        disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
         ${VARIANT_STYLES[variant]}
         ${SIZE_STYLES[size]}
         ${className}
@@ -67,8 +73,8 @@ export function Button({
         </>
       ) : (
         <>
-          {icon && <span className="text-lg">{icon}</span>}
-          {children}
+          {icon && <span className="flex-shrink-0">{icon}</span>}
+          <span>{children}</span>
         </>
       )}
     </button>

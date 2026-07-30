@@ -13,6 +13,14 @@ import { EmptyState } from "../components/EmptyState";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import {
+  IconApproval,
+  IconCheck,
+  IconEdit,
+  IconClock,
+  IconClose,
+  IconSparkles,
+} from "../components/Icons";
 
 export function ApprovalQueue(): JSX.Element {
   const { approvalQueue, isLoading, error } = useDashboardStore();
@@ -33,30 +41,22 @@ export function ApprovalQueue(): JSX.Element {
 
   const getDraftTypeLabel = (
     type: string
-  ): { label: string; icon: string; color: string } => {
+  ): { label: string; variant: "primary" | "success" | "warning" | "info" } => {
     const labels: Record<
       string,
-      { label: string; icon: string; color: string }
+      { label: string; variant: "primary" | "success" | "warning" | "info" }
     > = {
-      acknowledgement: {
-        label: "Acknowledgement",
-        icon: "✓",
-        color: "bg-blue-500/20",
-      },
-      completion: { label: "Completion", icon: "🎉", color: "bg-green-500/20" },
-      recovery: { label: "Recovery", icon: "⚡", color: "bg-amber-500/20" },
-      extension_request: {
-        label: "Extension Request",
-        icon: "⏱️",
-        color: "bg-purple-500/20",
-      },
+      acknowledgement: { label: "Acknowledgement", variant: "primary" },
+      completion: { label: "Completion Notice", variant: "success" },
+      recovery: { label: "Recovery Plan", variant: "warning" },
+      extension_request: { label: "Extension Request", variant: "info" },
     };
-    return labels[type] || { label: type, icon: "📝", color: "bg-slate-500/20" };
+    return labels[type] || { label: type, variant: "primary" };
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-8 animate-fade-in w-full">
         <SkeletonHeader />
         <LoadingSkeleton count={3} type="card" />
       </div>
@@ -64,125 +64,128 @@ export function ApprovalQueue(): JSX.Element {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in w-full">
+    <div className="space-y-8 animate-fade-in w-full pb-12">
       {/* Header */}
-      <div className="space-y-2 border-b border-slate-800/50 pb-6">
-        <h1 className="text-2xl font-bold text-slate-50">
-          Approval Queue
-        </h1>
-        <p className="text-slate-400 text-sm">
-          Review and approve AI-drafted communications before sending
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-50 tracking-tight flex items-center gap-3">
+            <span>Approval Queue</span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              {approvalQueue.length} Pending
+            </span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Review, edit, and authorize AI-drafted responses before sending.
+          </p>
+        </div>
       </div>
 
-      {/* Error state */}
+      {/* Error Banner */}
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
-          <p className="font-medium">Error: {error}</p>
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
+          <p className="font-semibold">Error: {error}</p>
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty State */}
       {approvalQueue.length === 0 && !error ? (
         <EmptyState
-          icon="✨"
-          title="All caught up!"
-          description="No pending communications. New drafts will appear here when generated."
+          icon={<IconApproval className="w-8 h-8 text-indigo-400" />}
+          title="Approval Queue Clean!"
+          description="All AI drafts have been reviewed and approved. New drafts will populate here automatically."
         />
       ) : (
-        <>
-          {/* Summary */}
-          <div className="card">
-            <p className="text-slate-300">
-              <span className="font-semibold text-white">
-                {approvalQueue.length}
-              </span>{" "}
-              communication{approvalQueue.length !== 1 ? "s" : ""} pending approval
-            </p>
-          </div>
+        <div className="space-y-8">
+          {Object.entries(draftsByType).map(([type, drafts]) => {
+            const typeInfo = getDraftTypeLabel(type);
 
-          {/* Drafts by type */}
-          <div className="space-y-6">
-            {Object.entries(draftsByType).map(([type, drafts]) => {
-              const typeInfo = getDraftTypeLabel(type);
+            return (
+              <div key={type} className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold text-slate-200">
+                    {typeInfo.label}
+                  </h2>
+                  <Badge variant={typeInfo.variant}>{drafts.length}</Badge>
+                </div>
 
-              return (
-                <div key={type} className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{typeInfo.icon}</span>
-                    <h2 className="text-xl font-semibold text-slate-200">
-                      {typeInfo.label}
-                    </h2>
-                    <Badge variant="primary">{drafts.length}</Badge>
-                  </div>
-
-                  {/* Draft cards */}
-                  <div className="space-y-3">
-                    {drafts.map((item) => (
-                      <Card key={item.draft.id} className="hover:bg-white/10">
-                        <div className="space-y-3">
-                          {/* Header */}
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-slate-100 truncate">
-                                {item.commitment.title}
-                              </p>
-                              <p className="text-sm text-slate-400 truncate">
-                                To: {item.commitment.requester}
-                              </p>
-                            </div>
-                            <span className="text-xs text-slate-500 flex-shrink-0">
-                              {item.createdAtLabel}
-                            </span>
-                          </div>
-
-                          {/* Draft preview */}
-                          <div className="bg-slate-900/50 rounded p-3 border border-slate-700/50">
-                            <p className="text-sm text-slate-300 line-clamp-3">
-                              {item.draft.content}
+                <div className="space-y-4">
+                  {drafts.map((item) => (
+                    <Card key={item.draft.id} className="hover:border-indigo-500/40">
+                      <div className="space-y-4">
+                        {/* Card Header */}
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="font-bold text-slate-100 text-base">
+                              {item.commitment.title}
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Recipient: <span className="font-semibold text-slate-200">{item.commitment.requester}</span>
                             </p>
                           </div>
-
-                          {/* Actions */}
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              icon="✓"
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              icon="✏️"
-                            >
-                              Edit & Send
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              icon="⏱️"
-                            >
-                              Snooze
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              icon="✕"
-                            >
-                              Discard
-                            </Button>
-                          </div>
+                          <span className="text-xs font-mono text-slate-500 bg-slate-950/60 px-2.5 py-1 rounded-lg border border-slate-800">
+                            {item.createdAtLabel}
+                          </span>
                         </div>
-                      </Card>
-                    ))}
-                  </div>
+
+                        {/* AI Draft Preview Container */}
+                        <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 relative">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                              <IconSparkles className="w-3.5 h-3.5" />
+                              AI Draft Content
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
+                            {item.draft.content}
+                          </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-2.5 pt-2">
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            icon={<IconCheck className="w-4 h-4" />}
+                            onClick={() => alert(`Approved draft for ${item.commitment.title}`)}
+                          >
+                            Approve & Send
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={<IconEdit className="w-4 h-4" />}
+                            onClick={() => alert(`Opening editor for draft ${item.draft.id}`)}
+                          >
+                            Edit Draft
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="amber"
+                            icon={<IconClock className="w-4 h-4" />}
+                            onClick={() => alert(`Snoozed draft`)}
+                          >
+                            Snooze
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            icon={<IconClose className="w-4 h-4" />}
+                            onClick={() => alert(`Discarded draft`)}
+                          >
+                            Discard
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        </>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

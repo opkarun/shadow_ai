@@ -5,10 +5,9 @@
  * Pending, Upcoming, Overdue, Completed
  *
  * Integrates with Zustand store and fetches real data from backend API.
- * Shows commitment cards with status badges, priority, confidence, and quick actions.
  */
 
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useState } from "react";
 import type { Commitment } from "../../shared/types";
 import { useDashboardStore } from "../store";
 import {
@@ -21,6 +20,19 @@ import { CommitmentCard } from "../components/CommitmentCard";
 import { LoadingSkeleton, SkeletonHeader, SkeletonStats } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Button } from "../components/Button";
+import { CommitmentDetailModal } from "../components/CommitmentDetailModal";
+import {
+  IconDashboard,
+  IconAlertTriangle,
+  IconClock,
+  IconCheck,
+  IconRefresh,
+  IconSparkles,
+  IconEdit,
+  IconConfirmation,
+  IconArrowRight,
+} from "../components/Icons";
+import { useRouter } from "../routing/router";
 
 /**
  * Filter commitments by view type
@@ -34,7 +46,7 @@ function filterCommitmentsByView(
   switch (view) {
     case "PENDING":
       return commitments.filter(
-        (c) => c.status === "PENDING" && c.deadline && c.deadline > now
+        (c) => c.status === "PENDING" && c.deadline && new Date(c.deadline) > now
       );
 
     case "UPCOMING":
@@ -43,14 +55,14 @@ function filterCommitmentsByView(
         (c) =>
           c.status === "PENDING" &&
           c.deadline &&
-          c.deadline > now &&
-          c.deadline <= sevenDaysFromNow
+          new Date(c.deadline) > now &&
+          new Date(c.deadline) <= sevenDaysFromNow
       );
 
     case "OVERDUE":
       return commitments.filter(
         (c) =>
-          (c.status === "OVERDUE" || (c.deadline && c.deadline <= now)) &&
+          (c.status === "OVERDUE" || (c.deadline && new Date(c.deadline) <= now)) &&
           c.status !== "COMPLETED"
       );
 
@@ -66,10 +78,11 @@ function filterCommitmentsByView(
 /**
  * Calculate days remaining for a commitment
  */
-function calculateDaysRemaining(deadline: Date | null): number | null {
+function calculateDaysRemaining(deadline: Date | string | null): number | null {
   if (!deadline) return null;
   const now = new Date();
-  const diffMs = deadline.getTime() - now.getTime();
+  const d = new Date(deadline);
+  const diffMs = d.getTime() - now.getTime();
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
@@ -88,7 +101,10 @@ function determineRiskLevel(
 }
 
 export function Dashboard(): JSX.Element {
-  const [activeView, setActiveView] = React.useState<ViewType>("PENDING");
+  const [activeView, setActiveView] = useState<ViewType>("PENDING");
+  const [selectedCommitment, setSelectedCommitment] = useState<Commitment | null>(null);
+
+  const navigate = useRouter((state) => state.navigate);
 
   // Store hooks
   const {
@@ -101,21 +117,17 @@ export function Dashboard(): JSX.Element {
     lastSyncedAt,
   } = useDashboardStore();
 
-  // Memoize query to prevent infinite useEffect re-runs
   const query = useMemo(() => ({ view: activeView }), [activeView]);
 
-  // Data fetching hooks
   useFetchCommitments(query);
   useFetchStats();
   const refreshDashboard = useRefreshDashboard();
 
-  // Filter commitments by active view
   const filteredCommitments = useMemo(
     () => filterCommitmentsByView(commitments, activeView),
     [commitments, activeView]
   );
 
-  // Calculate view counts
   const viewCounts = useMemo(() => {
     return {
       PENDING: filterCommitmentsByView(commitments, "PENDING").length,
@@ -126,114 +138,184 @@ export function Dashboard(): JSX.Element {
     };
   }, [commitments]);
 
-  // Handle manual refresh
   const handleRefresh = useCallback(async () => {
     await refreshDashboard();
   }, [refreshDashboard]);
 
   return (
-    <div className="space-y-8 animate-fade-in w-full">
-      {/* Error state */}
+    <div className="space-y-8 animate-fade-in w-full pb-12">
+      {/* Error Banner */}
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
-          <p className="font-medium">Error: {error}</p>
-          <button
-            onClick={handleRefresh}
-            className="mt-3 text-xs text-red-300 hover:text-red-200 underline transition-colors"
-          >
-            Try again
-          </button>
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <IconAlertTriangle className="w-5 h-5 text-rose-400" />
+            <span className="font-semibold">Error loading commitments: {error}</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleRefresh}>
+            Retry
+          </Button>
         </div>
       )}
 
       {/* Header Section */}
-      <div className="space-y-2 border-b border-slate-800/50 pb-6">
-        {isLoading ? (
-          <SkeletonHeader />
-        ) : (
-          <>
-            <h1 className="text-2xl font-bold text-slate-50">
-              Commitment Dashboard
-            </h1>
-            <p className="text-slate-400 text-sm">
-              Track, verify, and manage all your commitments in one place
-            </p>
-          </>
-        )}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-50 tracking-tight flex items-center gap-3">
+            <span>Commitment Operations</span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <IconSparkles className="w-3.5 h-3.5" />
+              Live AI
+            </span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Real-time commitment tracking, autonomous verification, and execution queue.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<IconRefresh className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />}
+            onClick={handleRefresh}
+            isLoading={isLoading}
+          >
+            Sync Data
+          </Button>
+        </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Metric Cards Grid */}
       {isLoading ? (
         <SkeletonStats />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Commitments */}
-          <div className="rounded-lg bg-slate-900/30 border border-slate-800/50 hover:border-slate-700/50 transition-all p-6 group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="text-4xl opacity-40 group-hover:opacity-60 transition-opacity">
-                📊
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Total</p>
-                <p className="text-3xl font-bold text-slate-50 mt-1">
+          <div className="relative p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-indigo-500/40 transition-all duration-300 shadow-xl group overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tracked</p>
+                <h3 className="text-3xl font-black text-slate-50 mt-1">
                   {stats.total}
-                </p>
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                <IconDashboard className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-xs text-slate-400">All commitments</p>
+            <p className="text-xs text-slate-500 mt-4 flex items-center gap-1">
+              <span>All active & archived commitments</span>
+            </p>
           </div>
 
           {/* At Risk */}
-          <div className="rounded-lg bg-slate-900/30 border border-slate-800/50 hover:border-amber-500/30 transition-all p-6 group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="text-4xl opacity-40 group-hover:opacity-60 transition-opacity">
-                ⚠️
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">At Risk</p>
-                <p className="text-3xl font-bold text-amber-300 mt-1">
+          <div className="relative p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-amber-500/40 transition-all duration-300 shadow-xl group overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-amber-400/90 uppercase tracking-wider">At Risk</p>
+                <h3 className="text-3xl font-black text-amber-300 mt-1">
                   {stats.atRisk}
-                </p>
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <IconAlertTriangle className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-xs text-slate-400">Need attention</p>
+            <p className="text-xs text-slate-500 mt-4">Low confidence or tight deadlines</p>
           </div>
 
           {/* Due Today */}
-          <div className="rounded-lg bg-slate-900/30 border border-slate-800/50 hover:border-red-500/30 transition-all p-6 group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="text-4xl opacity-40 group-hover:opacity-60 transition-opacity">
-                🔴
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Due Today</p>
-                <p className="text-3xl font-bold text-red-300 mt-1">
+          <div className="relative p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-rose-500/40 transition-all duration-300 shadow-xl group overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-rose-400/90 uppercase tracking-wider">Due Today</p>
+                <h3 className="text-3xl font-black text-rose-300 mt-1">
                   {stats.dueToday}
-                </p>
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+                <IconClock className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-xs text-slate-400">Deadline today</p>
+            <p className="text-xs text-slate-500 mt-4">Action required immediately</p>
           </div>
 
           {/* Completed */}
-          <div className="rounded-lg bg-slate-900/30 border border-slate-800/50 hover:border-green-500/30 transition-all p-6 group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="text-4xl opacity-40 group-hover:opacity-60 transition-opacity">
-                ✓
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Completed</p>
-                <p className="text-3xl font-bold text-green-300 mt-1">
+          <div className="relative p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-emerald-500/40 transition-all duration-300 shadow-xl group overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-400/90 uppercase tracking-wider">Resolved</p>
+                <h3 className="text-3xl font-black text-emerald-300 mt-1">
                   {stats.completed}
-                </p>
+                </h3>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                <IconCheck className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-xs text-slate-400">Closed this month</p>
+            <p className="text-xs text-slate-500 mt-4">Verified completed tasks</p>
           </div>
         </div>
       )}
 
-      {/* View Tabs */}
+      {/* Action Summaries Banner Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {approvalQueue.length > 0 && (
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-950/60 to-purple-950/40 border border-indigo-500/30 flex items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 flex-shrink-0">
+                <IconEdit className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-indigo-100">
+                  {approvalQueue.length} Pending AI Draft{approvalQueue.length !== 1 ? "s" : ""}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Awaiting review before dispatch
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<IconArrowRight className="w-4 h-4" />}
+              onClick={() => navigate("approval-queue")}
+            >
+              Review Queue
+            </Button>
+          </div>
+        )}
+
+        {confirmationItems.length > 0 && (
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-950/60 to-orange-950/40 border border-amber-500/30 flex items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 flex-shrink-0">
+                <IconConfirmation className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-amber-100">
+                  {confirmationItems.length} Medium-Confidence Item{confirmationItems.length !== 1 ? "s" : ""}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Needs one-tap confirmation
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="amber"
+              size="sm"
+              icon={<IconArrowRight className="w-4 h-4" />}
+              onClick={() => navigate("confirmations")}
+            >
+              Confirm
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* View Filter Tabs */}
       {!isLoading && (
         <ViewTabs
           activeView={activeView}
@@ -242,36 +324,29 @@ export function Dashboard(): JSX.Element {
         />
       )}
 
-      {/* Commitments List */}
+      {/* Commitments List Grid */}
       <div className="space-y-4">
         {isLoading ? (
           <LoadingSkeleton count={3} type="card" />
         ) : filteredCommitments.length === 0 ? (
           <EmptyState
-            icon={
-              activeView === "COMPLETED"
-                ? "🎉"
-                : activeView === "OVERDUE"
-                  ? "✨"
-                  : "📭"
-            }
             title={
               activeView === "COMPLETED"
-                ? "Great job!"
+                ? "All commitments completed!"
                 : activeView === "OVERDUE"
-                  ? "All caught up!"
-                  : `No ${activeView.toLowerCase()} commitments`
+                  ? "Zero overdue commitments"
+                  : `No ${activeView.toLowerCase()} commitments found`
             }
             description={
               activeView === "COMPLETED"
-                ? "You've completed all commitments in this view"
+                ? "No completed records in this timeframe."
                 : activeView === "OVERDUE"
-                  ? "No overdue commitments. Keep up the good work!"
-                  : "Check other views or create a new commitment"
+                  ? "Great job! All your commitments are up to date."
+                  : "Check back later or switch view filters."
             }
           />
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-3.5">
             {filteredCommitments.map((commitment) => {
               const daysRemaining = calculateDaysRemaining(commitment.deadline);
               const riskLevel = determineRiskLevel(
@@ -292,11 +367,9 @@ export function Dashboard(): JSX.Element {
                   priority={commitment.priority_score}
                   confidence={commitment.confidence_score}
                   riskLevel={riskLevel}
-                  evidenceCount={0} // TODO: Fetch evidence count from store
+                  evidenceCount={0}
                   hasPendingDraft={hasPendingDraft}
-                  onClick={() => {
-                    // TODO: Navigate to commitment detail page
-                  }}
+                  onClick={() => setSelectedCommitment(commitment)}
                 />
               );
             })}
@@ -304,74 +377,11 @@ export function Dashboard(): JSX.Element {
         )}
       </div>
 
-      {/* Quick Actions Footer */}
-      {!isLoading && (
-        <div className="pt-8 border-t border-slate-800/50">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-sm text-slate-400">
-              <span>Last synced:</span>
-              {lastSyncedAt ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-300">
-                    {lastSyncedAt.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  <span className="inline-block w-2 h-2 bg-green-500/80 rounded-full"></span>
-                </div>
-              ) : (
-                <span className="text-slate-500">Never</span>
-              )}
-            </div>
-            <Button
-              icon="🔄"
-              onClick={handleRefresh}
-              isLoading={isLoading}
-            >
-              Refresh
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Pending Drafts Summary */}
-      {approvalQueue.length > 0 && (
-        <div className="rounded-lg bg-indigo-600/10 border border-indigo-500/20 p-6">
-          <p className="text-sm font-medium text-indigo-300 mb-4">
-            ✓ You have {approvalQueue.length} pending draft
-            {approvalQueue.length !== 1 ? "s" : ""} awaiting approval
-          </p>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              // TODO: Navigate to approval queue
-            }}
-          >
-            Review drafts →
-          </Button>
-        </div>
-      )}
-
-      {/* Pending Confirmations Summary */}
-      {confirmationItems.length > 0 && (
-        <div className="rounded-lg bg-amber-600/10 border border-amber-500/20 p-6">
-          <p className="text-sm font-medium text-amber-300 mb-4">
-            ? You have {confirmationItems.length} medium-confidence commitment
-            {confirmationItems.length !== 1 ? "s" : ""} awaiting confirmation
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              // TODO: Navigate to confirmation inbox
-            }}
-          >
-            Review confirmations →
-          </Button>
-        </div>
-      )}
+      {/* Commitment Detail Slide-over Modal */}
+      <CommitmentDetailModal
+        commitment={selectedCommitment}
+        onClose={() => setSelectedCommitment(null)}
+      />
     </div>
   );
 }

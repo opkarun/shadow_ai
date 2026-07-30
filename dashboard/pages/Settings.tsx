@@ -9,7 +9,13 @@ import React, { useState } from "react";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
-import { useDashboardStore } from "../store";
+import {
+  IconNotification,
+  IconAlertTriangle,
+  IconShield,
+  IconUser,
+  IconCheck,
+} from "../components/Icons";
 
 export function Settings(): JSX.Element {
   const [activeTab, setActiveTab] = useState<
@@ -44,139 +50,114 @@ export function Settings(): JSX.Element {
   };
 
   const tabs = [
-    { id: "notifications", label: "Notifications", icon: "🔔" },
-    { id: "risk", label: "Risk Settings", icon: "⚠️" },
-    { id: "integrations", label: "Integrations", icon: "🔗" },
-    { id: "profile", label: "Profile", icon: "👤" },
+    { id: "notifications", label: "Notifications", icon: <IconNotification className="w-4 h-4" /> },
+    { id: "risk", label: "Risk Engine", icon: <IconAlertTriangle className="w-4 h-4" /> },
+    { id: "integrations", label: "Integrations", icon: <IconShield className="w-4 h-4" /> },
+    { id: "profile", label: "Profile", icon: <IconUser className="w-4 h-4" /> },
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in w-full">
+    <div className="space-y-8 animate-fade-in w-full pb-12">
       {/* Header */}
-      <div className="space-y-2 border-b border-slate-800/50 pb-6">
-        <h1 className="text-2xl font-bold text-slate-50">
-          Settings
-        </h1>
-        <p className="text-slate-400 text-sm">
-          Manage your Shadow dashboard preferences and integrations
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-50 tracking-tight">
+            System Settings
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Configure risk thresholds, notifications, connected accounts, and system behavior.
+          </p>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-800/50 pb-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() =>
-              setActiveTab(
-                tab.id as
-                  | "notifications"
-                  | "risk"
-                  | "integrations"
-                  | "profile"
-              )
-            }
-            className={`
-              flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors
-              ${
-                activeTab === tab.id
-                  ? "border-b-2 border-indigo-500 text-indigo-300"
-                  : "text-slate-400 hover:text-slate-300 border-b-2 border-transparent"
+      {/* Modern Pill Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800/80">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() =>
+                setActiveTab(
+                  tab.id as "notifications" | "risk" | "integrations" | "profile"
+                )
               }
-            `}
-          >
-            <span className="text-base">{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer outline-none select-none
+                ${
+                  isActive
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
+                }
+              `}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Content */}
+      {/* Tab Content */}
       <div className="space-y-6">
         {/* Notifications Settings */}
         {activeTab === "notifications" && (
           <div className="space-y-4">
-            <Card header={<h2 className="font-semibold">Notification Preferences</h2>}>
+            <Card header={<h2 className="font-bold text-slate-100 text-base">Notification Preferences</h2>}>
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-slate-800">
                   <div>
-                    <p className="font-medium text-slate-100">
-                      New Commitments
+                    <p className="font-bold text-slate-200 text-sm">
+                      New Commitment Detections
                     </p>
-                    <p className="text-sm text-slate-400">
-                      Notify me when new commitments are detected
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Send alerts when new commitments are extracted from messages
                     </p>
                   </div>
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-5 h-5 rounded"
+                    className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-slate-800">
                   <div>
-                    <p className="font-medium text-slate-100">At-Risk Alerts</p>
-                    <p className="text-sm text-slate-400">
-                      Notify me when commitments become at-risk
+                    <p className="font-bold text-slate-200 text-sm">At-Risk Alerts</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Notify immediately when a commitment crosses risk threshold
                     </p>
                   </div>
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-5 h-5 rounded"
+                    className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-slate-800">
                   <div>
-                    <p className="font-medium text-slate-100">
-                      Draft Generated
+                    <p className="font-bold text-slate-200 text-sm">
+                      AI Draft Ready
                     </p>
-                    <p className="text-sm text-slate-400">
-                      Notify me when drafts are ready for approval
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Notify when communication drafts are queued for approval
                     </p>
                   </div>
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-5 h-5 rounded"
+                    className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
                   />
-                </div>
-
-                <div className="pt-4 border-t border-white/10">
-                  <p className="font-medium text-slate-100 mb-3">
-                    Quiet Hours
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm text-slate-400 block mb-1">
-                        From
-                      </label>
-                      <input
-                        type="time"
-                        defaultValue="22:00"
-                        className="w-full bg-slate-900/50 border border-slate-700 rounded px-3 py-2 text-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-slate-400 block mb-1">
-                        To
-                      </label>
-                      <input
-                        type="time"
-                        defaultValue="08:00"
-                        className="w-full bg-slate-900/50 border border-slate-700 rounded px-3 py-2 text-slate-100"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="primary">Save Changes</Button>
-              <Button variant="secondary">Reset to Default</Button>
+              <Button variant="primary" size="sm" onClick={() => alert("Notification settings saved!")}>
+                Save Changes
+              </Button>
             </div>
           </div>
         )}
@@ -184,34 +165,33 @@ export function Settings(): JSX.Element {
         {/* Risk Settings */}
         {activeTab === "risk" && (
           <div className="space-y-4">
-            <Card header={<h2 className="font-semibold">Risk Detection</h2>}>
+            <Card header={<h2 className="font-bold text-slate-100 text-base">Autonomous Risk Engine Settings</h2>}>
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="font-medium text-slate-100">
-                      Risk Window (% of commitment duration)
+                    <label className="text-sm font-bold text-slate-200">
+                      Risk Window (% of commitment deadline duration)
                     </label>
-                    <span className="text-indigo-300 font-semibold">25%</span>
+                    <span className="text-indigo-400 font-bold text-sm">25%</span>
                   </div>
                   <input
                     type="range"
                     min="10"
                     max="50"
                     defaultValue="25"
-                    className="w-full"
+                    className="w-full accent-indigo-600 cursor-pointer"
                   />
                   <p className="text-xs text-slate-400 mt-2">
-                    How early to flag commitments as at-risk before the
-                    deadline
+                    How early to trigger risk warnings prior to target deadline.
                   </p>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="font-medium text-slate-100">
-                      At-Risk Threshold
+                    <label className="text-sm font-bold text-slate-200">
+                      Minimum At-Risk Score Threshold
                     </label>
-                    <span className="text-amber-300 font-semibold">0.65</span>
+                    <span className="text-amber-400 font-bold text-sm">0.65</span>
                   </div>
                   <input
                     type="range"
@@ -219,35 +199,16 @@ export function Settings(): JSX.Element {
                     max="0.9"
                     step="0.05"
                     defaultValue="0.65"
-                    className="w-full"
-                  />
-                  <p className="text-xs text-slate-400 mt-2">
-                    Risk score threshold for marking commitments as at-risk
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-slate-100">
-                      Auto-Queue Recovery Drafts
-                    </p>
-                    <p className="text-sm text-slate-400">
-                      Automatically draft recovery messages for overdue
-                      commitments
-                    </p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="w-5 h-5 rounded"
+                    className="w-full accent-indigo-600 cursor-pointer"
                   />
                 </div>
               </div>
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="primary">Save Changes</Button>
-              <Button variant="secondary">Reset to Default</Button>
+              <Button variant="primary" size="sm" onClick={() => alert("Risk settings updated!")}>
+                Save Risk Thresholds
+              </Button>
             </div>
           </div>
         )}
@@ -255,77 +216,59 @@ export function Settings(): JSX.Element {
         {/* Integrations */}
         {activeTab === "integrations" && (
           <div className="space-y-4">
-            <Card header={<h2 className="font-semibold">Connected Accounts</h2>}>
+            <Card header={<h2 className="font-bold text-slate-100 text-base">Active Integrations</h2>}>
               <div className="space-y-3">
                 {[
                   {
-                    name: "Gmail",
-                    status: "connected",
-                    icon: "📧",
-                    lastSync: "2 min ago",
+                    name: "Gmail API",
+                    status: "Connected",
+                    desc: "Scanning inbox for incoming requests and commitments",
                   },
                   {
-                    name: "GitHub",
-                    status: "connected",
-                    icon: "🐙",
-                    lastSync: "5 min ago",
+                    name: "GitHub Webhooks",
+                    status: "Connected",
+                    desc: "Auto-matching commits and pull requests as evidence",
                   },
                   {
                     name: "Google Calendar",
-                    status: "connected",
-                    icon: "📅",
-                    lastSync: "1 hour ago",
+                    status: "Connected",
+                    desc: "Syncing meeting deadlines and action items",
                   },
                 ].map((integration) => (
                   <div
                     key={integration.name}
-                    className="p-4 bg-slate-900/50 rounded border border-slate-700/50 flex items-center justify-between"
+                    className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between gap-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{integration.icon}</span>
-                      <div>
-                        <p className="font-medium text-slate-100">
-                          {integration.name}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          Last synced: {integration.lastSync}
-                        </p>
-                      </div>
+                    <div>
+                      <h4 className="font-bold text-slate-100 text-sm">{integration.name}</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">{integration.desc}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="success">Connected</Badge>
-                      <button className="px-3 py-1 text-sm text-slate-400 hover:text-slate-200 transition-colors">
-                        Settings
-                      </button>
-                    </div>
+
+                    <Badge variant="success" icon={<IconCheck className="w-3.5 h-3.5" />}>
+                      {integration.status}
+                    </Badge>
                   </div>
                 ))}
               </div>
             </Card>
 
             {gmailError && (
-              <div className="p-4 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                <p className="font-medium">Connection Error</p>
+              <div className="p-4 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-sm">
+                <p className="font-semibold">Connection Error</p>
                 <p className="mt-1">{gmailError}</p>
               </div>
             )}
 
-            <Card header={<h2 className="font-semibold">Available Integrations</h2>}>
+            <Card header={<h2 className="font-bold text-slate-100 text-base">Add New Connection</h2>}>
               <div className="space-y-3">
                 <Button
                   variant="secondary"
                   className="w-full"
                   isLoading={isConnectingGmail}
                   onClick={handleConnectGmail}
-                  icon="📧"
                 >
-                  {isConnectingGmail
-                    ? "Connecting..."
-                    : "+ Connect Gmail"}
+                  {isConnectingGmail ? "Connecting Gmail..." : "+ Re-Authorize Gmail OAuth"}
                 </Button>
-                <p className="text-xs text-slate-400 text-center">
-                  Grant access to scan your emails for commitments
-                </p>
               </div>
             </Card>
           </div>
@@ -334,65 +277,37 @@ export function Settings(): JSX.Element {
         {/* Profile */}
         {activeTab === "profile" && (
           <div className="space-y-4">
-            <Card header={<h2 className="font-semibold">Account Information</h2>}>
+            <Card header={<h2 className="font-bold text-slate-100 text-base">Account Credentials</h2>}>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-slate-400 block mb-2">
-                    Name
+                  <label className="text-xs font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
+                    Executive Name
                   </label>
                   <input
                     type="text"
                     defaultValue="Ayaan Arora"
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded px-3 py-2 text-slate-100"
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 text-sm focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-400 block mb-2">
-                    Email
+                  <label className="text-xs font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
+                    Primary Work Email
                   </label>
                   <input
                     type="email"
                     defaultValue="ayaan@example.com"
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded px-3 py-2 text-slate-100"
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 text-sm focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
                   />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-slate-400 block mb-2">
-                    Timezone
-                  </label>
-                  <select className="w-full bg-slate-900/50 border border-slate-700 rounded px-3 py-2 text-slate-100">
-                    <option>America/New_York</option>
-                    <option>America/Chicago</option>
-                    <option>America/Denver</option>
-                    <option>America/Los_Angeles</option>
-                    <option>Europe/London</option>
-                    <option>Europe/Paris</option>
-                    <option>Asia/Tokyo</option>
-                  </select>
                 </div>
               </div>
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="primary">Save Changes</Button>
-              <Button variant="secondary">Reset to Default</Button>
+              <Button variant="primary" size="sm" onClick={() => alert("Profile saved!")}>
+                Save Profile
+              </Button>
             </div>
-
-            <Card className="bg-red-500/10 border-red-500/20">
-              <div>
-                <p className="font-semibold text-red-300 mb-2">
-                  Danger Zone
-                </p>
-                <p className="text-sm text-slate-300 mb-4">
-                  These actions cannot be undone.
-                </p>
-                <Button variant="danger">
-                  Delete Account
-                </Button>
-              </div>
-            </Card>
           </div>
         )}
       </div>

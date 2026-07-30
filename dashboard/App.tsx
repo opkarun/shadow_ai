@@ -45,7 +45,7 @@ export function App(): JSX.Element {
     } else if (path === "/oauth-error") {
       navigate("oauth-error");
     }
-  }, [navigate]);
+  }, []);
 
   // Full-screen pages (no shell)
   if (currentPage === "oauth-success") {
@@ -80,10 +80,8 @@ export function App(): JSX.Element {
     }
   }, [currentPage]);
 
-  const pageTitle = PAGE_TITLES[currentPage] || "Dashboard";
-
   return (
-    <DashboardShell title={pageTitle} showSearch={currentPage === "dashboard"}>
+    <DashboardShell>
       {pageContent}
     </DashboardShell>
   );

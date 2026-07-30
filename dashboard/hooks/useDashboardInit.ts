@@ -17,7 +17,8 @@ export function useDashboardInit(): {
   error: string | null;
   refresh: () => Promise<void>;
 } {
-  const { isLoading, error } = useDashboardStore();
+  const isLoading = useDashboardStore((s) => s.isLoading);
+  const error = useDashboardStore((s) => s.error);
   const refreshDashboard = useRefreshDashboard();
 
   useEffect(() => {
