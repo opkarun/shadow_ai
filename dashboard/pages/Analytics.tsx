@@ -2,11 +2,12 @@
  * Analytics & Insights Page
  *
  * Displays commitment performance metrics, completion velocity,
- * and stakeholder reliability stats.
+ * and stakeholder reliability stats from real MongoDB data.
  */
 
 import React, { useMemo } from "react";
 import { useDashboardStore } from "../store";
+import { useFetchCommitments } from "../hooks/useDashboardData";
 import { LoadingSkeleton, SkeletonHeader, SkeletonStats } from "../components/LoadingSkeleton";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
@@ -25,6 +26,9 @@ import {
 
 export function Analytics(): JSX.Element {
   const { commitments, isLoading } = useDashboardStore();
+
+  const query = useMemo(() => ({ view: "ALL" as const, pageSize: 100 }), []);
+  useFetchCommitments(query);
 
   const metrics = useMemo(
     () => getTimeBasedMetrics(commitments),
@@ -48,7 +52,7 @@ export function Analytics(): JSX.Element {
 
   const topPerformers = requesterStats
     .sort((a, b) => b.completed - a.completed)
-    .slice(0, 5);
+    .slice(0, 10);
 
   return (
     <div className="space-y-8 animate-fade-in w-full pb-12">
@@ -59,18 +63,18 @@ export function Analytics(): JSX.Element {
             <span>Analytics & Intelligence</span>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
               <IconSparkles className="w-3.5 h-3.5" />
-              Insights Engine
+              Real-time Telemetry
             </span>
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Performance metrics, stakeholder velocity, and execution telemetry.
+            Performance metrics, stakeholder velocity, and execution analysis computed from MongoDB.
           </p>
         </div>
       </div>
 
       {/* Key Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
+        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Completion Rate</span>
             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -80,10 +84,10 @@ export function Analytics(): JSX.Element {
           <p className="text-4xl font-black text-emerald-300 mt-2">
             {Math.round(metrics.completionRate)}%
           </p>
-          <p className="text-xs text-slate-500 mt-2">Of total detected commitments</p>
+          <p className="text-xs text-slate-500 mt-2">Of {commitments.length} total detected commitments</p>
         </div>
 
-        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
+        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">On-Time Accuracy</span>
             <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
@@ -96,7 +100,7 @@ export function Analytics(): JSX.Element {
           <p className="text-xs text-slate-500 mt-2">Delivered before deadline</p>
         </div>
 
-        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
+        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Average Resolution Speed</span>
             <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
@@ -104,9 +108,9 @@ export function Analytics(): JSX.Element {
             </div>
           </div>
           <p className="text-4xl font-black text-purple-300 mt-2">
-            {metrics.averageTimeToComplete ? `${metrics.averageTimeToComplete}d` : "—"}
+            {metrics.averageTimeToComplete !== null ? `${metrics.averageTimeToComplete}d` : "< 1d"}
           </p>
-          <p className="text-xs text-slate-500 mt-2">Days from detection to closure</p>
+          <p className="text-xs text-slate-500 mt-2">Average time from detection to closure</p>
         </div>
       </div>
 
@@ -119,22 +123,23 @@ export function Analytics(): JSX.Element {
                 key={stats.requester}
                 className="flex items-center justify-between p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shadow-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0">
                     {index + 1}
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-100 text-sm">{stats.requester}</p>
-                    <p className="text-xs text-slate-400">
-                      {stats.completed} resolved of {stats.count} total
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-100 text-sm truncate">{stats.requester}</p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {stats.completed} resolved of {stats.count} total (Avg confidence: {Math.round(stats.avgConfidence * 100)}%)
                     </p>
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right flex-shrink-0 ml-4">
                   <p className="text-lg font-black text-emerald-400">
                     {stats.count > 0 ? Math.round((stats.completed / stats.count) * 100) : 0}%
                   </p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">Reliability</p>
                 </div>
               </div>
             ))
@@ -146,8 +151,8 @@ export function Analytics(): JSX.Element {
         </div>
       </Card>
 
-      {/* AI AI Strategy Recommendations */}
-      <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-purple-950/30 border border-indigo-500/30 space-y-4">
+      {/* AI Strategy Recommendations */}
+      <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-purple-950/30 border border-indigo-500/30 space-y-4 shadow-xl">
         <h2 className="text-base font-bold text-indigo-200 flex items-center gap-2">
           <IconSparkles className="w-5 h-5 text-indigo-400" />
           <span>Autonomous Performance Recommendations</span>

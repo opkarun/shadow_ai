@@ -19,11 +19,16 @@ export function History(): JSX.Element {
   const { commitments, isLoading, error } = useDashboardStore();
   const [searchQuery, setSearchQuery] = useState("");
 
-  useFetchCommitments({
-    status: "COMPLETED",
-    page: 1,
-    pageSize: 50,
-  });
+  const historyQuery = useMemo(
+    () => ({
+      status: "COMPLETED" as const,
+      page: 1,
+      pageSize: 50,
+    }),
+    []
+  );
+
+  useFetchCommitments(historyQuery);
 
   const filteredCommitments = useMemo(() => {
     return commitments

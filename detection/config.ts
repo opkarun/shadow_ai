@@ -114,9 +114,6 @@ export const PREFILTER_PATTERNS = {
     "friday",
     "saturday",
     "sunday",
-
-    // Time patterns (e.g., "3pm", "15:00")
-    // Regex handled separately below
   ],
 
   // Regex for time patterns like "3pm", "15:00", "3 pm", etc.
@@ -166,7 +163,6 @@ export const PREFILTER_AUTO_FAIL_PATTERNS = {
 /**
  * Minimum word count to process a message.
  * Messages with fewer words than this are likely trivial acks and are auto-rejected.
- * Example: "thanks", "ok", "👍" — these should be filtered out cheaply.
  */
 export const PREFILTER_MIN_WORD_COUNT = 3;
 
@@ -176,21 +172,11 @@ export const PREFILTER_MIN_WORD_COUNT = 3;
 
 /**
  * Confidence score thresholds for automation tiers.
- * Scores are on a 0-1 scale (0 = no confidence, 1 = absolute confidence).
- *
- * HIGH-confidence candidates are auto-created as CONFIRMED.
- * MEDIUM-confidence candidates are surfaced for user confirmation.
- * LOW-confidence candidates are discarded as DISMISSED (silent, no dashboard noise).
  */
 export const CONFIDENCE_THRESHOLDS = {
-  // High confidence: auto-create
   HIGH: 0.75,
-
-  // Medium confidence: await user confirmation
   MEDIUM_MIN: 0.4,
   MEDIUM_MAX: 0.75,
-
-  // Low confidence: discard silently
   LOW: 0.4,
 };
 
@@ -198,29 +184,19 @@ export const CONFIDENCE_THRESHOLDS = {
 // EXTRACTION CONFIGURATION
 // ============================================================================
 
-/**
- * Batch size for LLM extraction calls.
- * Balances cost (fewer calls) vs. latency (fewer messages per call).
- * Larger batches = cheaper but slower; smaller batches = faster but more expensive.
- */
 export const EXTRACTION_BATCH_SIZE = 5;
 
 /**
  * Gemini model to use for extraction and scoring.
- * As of PRODUCT_SPEC Section 29, Flash is the default for MVP.
+ * gemini-2.0-flash is the recommended active fast production model.
  */
-export const GEMINI_MODEL_ID = "gemini-1.5-flash";
+export const GEMINI_MODEL_ID = "gemini-2.0-flash";
 
 /**
  * Retry configuration for transient API failures.
  */
 export const RETRY_CONFIG = {
-  // Max number of retries for transient failures
   MAX_RETRIES: 3,
-
-  // Initial backoff delay in milliseconds
-  INITIAL_BACKOFF_MS: 1000,
-
-  // Backoff multiplier (exponential backoff)
+  INITIAL_BACKOFF_MS: 3000,
   BACKOFF_MULTIPLIER: 2,
 };

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { getEnv } from "../utils/env";
+import { getEnv } from "../utils/env.js";
 
 let connectionPromise: Promise<typeof mongoose> | null = null;
 

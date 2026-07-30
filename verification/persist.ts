@@ -9,38 +9,26 @@
  */
 
 import { randomUUID } from "crypto";
-import { logger } from "../shared/utils";
-import { connectMongo } from "../shared/db/connect";
+import { logger } from "../shared/utils/index.js";
+import { connectMongo } from "../shared/db/connect.js";
 import {
   CommitmentModel,
   AuditLogEntryModel,
-} from "../shared/db/models";
+} from "../shared/db/models.js";
 import {
   transitionCommitmentStatus,
   commitmentStatusTransitions,
-} from "../shared/db/stateMachine";
-import type { Commitment, CommitmentStatus } from "../shared/types";
-import { OVERDUE_TRANSITION_CONFIG, LOG_STATUS_TRANSITIONS } from "./config";
+} from "../shared/db/stateMachine.js";
+import type { Commitment, CommitmentStatus } from "../shared/types/index.js";
+import { OVERDUE_TRANSITION_CONFIG, LOG_STATUS_TRANSITIONS } from "./config.js";
 import type {
   CommitmentVerificationResult,
   RiskDetectionResult,
-} from "./types";
-
-// ============================================================================
-// PUBLIC API
-// ============================================================================
+} from "./types.js";
+import { generateAndQueueDraft } from "../communication/index.js";
 
 /**
  * Persist a verification result and transition commitment status if appropriate.
- *
- * Evaluates the verification result and:
- * - Transitions to COMPLETED if sufficient evidence exists
- * - Logs the verification in audit trail
- * - Returns updated commitment
- *
- * @param verificationResult Result of evidence verification
- * @returns Updated Commitment after status transition (if applicable)
- * @throws Error if database operation fails
  */
 export async function persistVerificationResult(
   verificationResult: CommitmentVerificationResult
@@ -57,7 +45,6 @@ export async function persistVerificationResult(
   });
 
   try {
-    // Only transition if verification indicates completion
     if (is_complete && strongest_match) {
       const updated = await transitionCommitmentStatus(
         commitment.id,
@@ -80,16 +67,23 @@ export async function persistVerificationResult(
         });
       }
 
+      // Automatically queue completion draft for user review
+      generateAndQueueDraft("completion", {
+        commitment: updated,
+        evidence: [strongest_match.evidence],
+      }).catch((err) =>
+        logger.warn("Auto completion draft failed:", err)
+      );
+
       return updated;
     }
 
-    // No state transition, but log the verification attempt
     await AuditLogEntryModel.create({
       id: randomUUID(),
       commitment_id: commitment.id,
       event_type: "evidence_matched",
       before_state: { status: commitment.status },
-      after_state: { status: commitment.status }, // No change
+      after_state: { status: commitment.status },
       contributing_factors: {
         verification_summary: summary,
         evidence_count: verificationResult.evidence_matches.length,
@@ -122,13 +116,6 @@ export async function persistVerificationResult(
 
 /**
  * Persist a risk assessment result.
- *
- * Updates commitment priority and transitions to AT_RISK if appropriate.
- * Also queues a recovery draft if commitment becomes overdue.
- *
- * @param riskResult Result of risk assessment
- * @returns Updated Commitment after risk assessment
- * @throws Error if database operation fails
  */
 export async function persistRiskAssessment(
   riskResult: RiskDetectionResult
@@ -148,7 +135,6 @@ export async function persistRiskAssessment(
   try {
     let updated = commitment;
 
-    // Check if should transition to AT_RISK
     if (
       is_at_risk &&
       (commitment.status === "PENDING" ||
@@ -177,11 +163,15 @@ export async function persistRiskAssessment(
           });
         }
 
-        // TODO: Queue recovery draft (will be handled in Phase 4 Communication integration)
+        // Automatically queue recovery draft for at-risk commitment
+        generateAndQueueDraft("recovery", {
+          commitment: updated,
+        }).catch((err) =>
+          logger.warn("Auto recovery draft failed:", err)
+        );
       }
     }
 
-    // Log the risk assessment regardless of transition
     await AuditLogEntryModel.create({
       id: randomUUID(),
       commitment_id: commitment.id,
@@ -225,21 +215,12 @@ export async function persistRiskAssessment(
 
 /**
  * Mark a commitment as overdue due to passed deadline with no evidence.
- *
- * Per PRODUCT_SPEC Section 14: "Time passing is never evidence.
- * A commitment with a passed deadline and no matching evidence must
- * transition to OVERDUE, never silently to COMPLETED."
- *
- * @param commitment The commitment to mark overdue
- * @returns Updated Commitment with OVERDUE status
- * @throws Error if database operation fails
  */
 export async function markCommitmentOverdue(
   commitment: Commitment
 ): Promise<Commitment> {
   await connectMongo();
 
-  // Verify it's actually past deadline
   const now = new Date();
   if (!commitment.deadline || now <= commitment.deadline) {
     throw new Error(
@@ -271,15 +252,12 @@ export async function markCommitmentOverdue(
       });
     }
 
-    // TODO: Queue recovery draft if configured (Phase 4 Communication integration)
-    if (OVERDUE_TRANSITION_CONFIG.AUTO_QUEUE_RECOVERY_DRAFT) {
-      logger.info(
-        "Queuing recovery draft for overdue commitment (TODO in Phase 4)",
-        {
-          commitment_id: commitment.id,
-        }
-      );
-    }
+    // Automatically queue recovery draft when commitment becomes overdue
+    generateAndQueueDraft("recovery", {
+      commitment: updated,
+    }).catch((err) =>
+      logger.warn("Auto overdue recovery draft failed:", err)
+    );
 
     return updated;
   } catch (error) {
@@ -297,11 +275,6 @@ export async function markCommitmentOverdue(
 
 /**
  * Batch mark commitments as overdue.
- *
- * Efficiently marks multiple overdue commitments.
- *
- * @param commitments Commitments to mark overdue
- * @returns Array of updated commitments
  */
 export async function markCommitmentsOverdueBatch(
   commitments: Commitment[]
@@ -350,9 +323,6 @@ export async function markCommitmentsOverdueBatch(
 
 /**
  * Persist a batch of risk assessments.
- *
- * @param riskResults Array of risk assessment results
- * @returns Array of updated commitments
  */
 export async function persistRiskAssessmentBatch(
   riskResults: RiskDetectionResult[]
@@ -376,7 +346,6 @@ export async function persistRiskAssessmentBatch(
         error: errorMessage,
       });
 
-      // Continue with next rather than failing entire batch
       continue;
     }
   }

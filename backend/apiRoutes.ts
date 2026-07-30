@@ -5,389 +5,521 @@ import type {
   Evidence,
   CommunicationDraft,
   AuditLogEntry,
-} from "../shared/types";
+} from "../shared/types/index.js";
 import {
   generateAuthorizationUrl,
   exchangeCodeForTokens,
   storeTokens,
   getStoredTokens,
 } from "./oauth/gmailOAuth.js";
+import { connectMongo } from "../shared/db/connect.js";
+import {
+  CommitmentModel,
+  EvidenceModel,
+  CommunicationDraftModel,
+  AuditLogEntryModel,
+  IntegrationModel,
+} from "../shared/db/models.js";
+import { syncGmailMessages } from "./services/gmailSync.js";
 
-/**
- * Registers all Dashboard BFF routes on the Express app.
- *
- * PRODUCT_SPEC.md Section 21 defines the conceptual REST surface; routes aggregate
- * data from Detection, Verification, and Communication modules and format for the UI.
- *
- * In development, uses realistic mock data.
- * In production, would query database and call module functions.
- */
-// In-memory OAuth state storage (mock - in production, use session/Redis)
 const oauthStateStore = new Map<string, { createdAt: number }>();
 
+function getUserId(req: Request): string {
+  return (req.query.userId as string) || "user_demo_001";
+}
+
 export function registerDashboardRoutes(app: Express): void {
-  // ============================================================================
-  // MOCK DATA - In-Memory Store (for development/demo)
-  // ============================================================================
+  let dbConnected = false;
 
-  const MOCK_USER_ID = "user_demo_001";
-
-  const mockCommitments: Record<string, Commitment> = {
-    commit_001: {
-      id: "commit_001",
-      user_id: MOCK_USER_ID,
-      title: "Implement user authentication system",
-      description:
-        "Need to add JWT-based authentication to the API with refresh tokens",
-      requester: "alice@example.com",
-      source: "gmail",
-      source_reference: "msg_123",
-      deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
-      status: "PENDING",
-      confidence_score: 0.92,
-      priority_score: 5,
-      verification_method: "github_commit",
-      linked_repo: "myorg/myapp",
-      created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      updated_at: new Date(Date.now() - 1 * 60 * 60 * 1000),
-    },
-    commit_002: {
-      id: "commit_002",
-      user_id: MOCK_USER_ID,
-      title: "Review pull request for database optimization",
-      description: "Please review the PR #234 for database query optimization",
-      requester: "bob@example.com",
-      source: "github",
-      source_reference: "issue_456",
-      deadline: new Date(Date.now() + 5 * 60 * 60 * 1000), // 5 hours
-      status: "OVERDUE",
-      confidence_score: 0.85,
-      priority_score: 4,
-      verification_method: "github_pr",
-      linked_repo: "myorg/myapp",
-      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    },
-    commit_003: {
-      id: "commit_003",
-      user_id: MOCK_USER_ID,
-      title: "Deploy to production",
-      description: "Deploy the latest release to production environment",
-      requester: "charlie@example.com",
-      source: "gmail",
-      source_reference: "msg_789",
-      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      status: "PENDING",
-      confidence_score: 0.78,
-      priority_score: 3,
-      verification_method: "calendar_attendance",
-      linked_repo: null,
-      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      updated_at: new Date(),
-    },
-    commit_004: {
-      id: "commit_004",
-      user_id: MOCK_USER_ID,
-      title: "Send meeting notes to stakeholders",
-      description: "Compile and distribute meeting minutes from Q3 planning session",
-      requester: "diana@example.com",
-      source: "gmail",
-      source_reference: "msg_101",
-      deadline: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-      status: "COMPLETED",
-      confidence_score: 0.88,
-      priority_score: 2,
-      verification_method: "manual",
-      linked_repo: null,
-      created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-      updated_at: new Date(Date.now() - 1 * 60 * 60 * 1000),
-    },
-    commit_005: {
-      id: "commit_005",
-      user_id: MOCK_USER_ID,
-      title: "Complete documentation update",
-      description: "Update API documentation with new endpoints",
-      requester: "eve@example.com",
-      source: "github",
-      source_reference: "issue_222",
-      deadline: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-      status: "COMPLETED",
-      confidence_score: 0.81,
-      priority_score: 2,
-      verification_method: "github_commit",
-      linked_repo: "myorg/docs",
-      created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-      updated_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    },
-  };
-
-  const mockEvidence: Record<string, Evidence[]> = {
-    commit_001: [
-      {
-        id: "ev_001",
-        commitment_id: "commit_001",
-        evidence_type: "github_commit",
-        evidence_reference: "commit:abc123def456",
-        match_confidence: 0.95,
-        detected_at: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      },
-    ],
-    commit_004: [
-      {
-        id: "ev_002",
-        commitment_id: "commit_004",
-        evidence_type: "manual",
-        evidence_reference: "Manually marked complete by user",
-        match_confidence: 1.0,
-        detected_at: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      },
-    ],
-    commit_005: [
-      {
-        id: "ev_003",
-        commitment_id: "commit_005",
-        evidence_type: "github_commit",
-        evidence_reference: "commit:xyz789abc123",
-        match_confidence: 0.92,
-        detected_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      },
-    ],
-  };
-
-  const mockDrafts: Record<string, CommunicationDraft> = {
-    draft_001: {
-      id: "draft_001",
-      commitment_id: "commit_001",
-      draft_type: "acknowledgement",
-      content: "Hi Alice, I acknowledge your request to implement authentication. I'll start working on it tomorrow.",
-      status: "queued",
-      created_at: new Date(Date.now() - 30 * 60 * 1000),
-      sent_at: null,
-      final_sent_content: null,
-    },
-    draft_002: {
-      id: "draft_002",
-      commitment_id: "commit_002",
-      draft_type: "recovery",
-      content: "Hi Bob, I apologize for the delay on reviewing PR #234. Looking at it now.",
-      status: "queued",
-      created_at: new Date(Date.now() - 15 * 60 * 1000),
-      sent_at: null,
-      final_sent_content: null,
-    },
-  };
-
-  const mockAuditLogs: AuditLogEntry[] = [
-    {
-      id: "audit_001",
-      commitment_id: "commit_001",
-      event_type: "status_change",
-      before_state: { status: "DETECTED" },
-      after_state: { status: "CONFIRMED" },
-      contributing_factors: { confidence_score: 0.92 },
-      timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: "audit_002",
-      commitment_id: "commit_002",
-      event_type: "status_change",
-      before_state: { status: "PENDING" },
-      after_state: { status: "OVERDUE" },
-      contributing_factors: { reason: "deadline_passed" },
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    },
-  ];
-
-  // ============================================================================
-  // ROUTE HANDLERS
-  // ============================================================================
-
-  app.get("/api/commitments", (req: Request, res: Response) => {
-    const { status, q: searchQuery, sortBy = "deadline", page = "1", pageSize = "20" } = req.query;
-    let filtered = Object.values(mockCommitments);
-
-    if (status && status !== "ALL") {
-      filtered = filtered.filter((c) => c.status === status);
+  const ensureDb = async () => {
+    if (!dbConnected) {
+      await connectMongo();
+      dbConnected = true;
     }
+  };
 
-    if (searchQuery && typeof searchQuery === "string") {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.title.toLowerCase().includes(query) ||
-          c.description.toLowerCase().includes(query)
+  // ============================================================================
+  // COMMITMENTS ENDPOINTS
+  // ============================================================================
+
+  app.get("/api/commitments", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      let query = CommitmentModel.find({ user_id: userId });
+
+      // Apply filters
+      if (req.query.status) {
+        if (req.query.status === "COMPLETED") {
+          query = query.where("status").in(["COMPLETED", "ARCHIVED"]);
+        } else {
+          query = query.where("status").equals(req.query.status);
+        }
+      }
+      if (req.query.view && req.query.view === "PENDING") {
+        query = query.where("status").in(["PENDING", "CONFIRMED", "DETECTED", "AT_RISK"]);
+      }
+      if (req.query.view && req.query.view === "COMPLETED") {
+        query = query.where("status").in(["COMPLETED", "ARCHIVED"]);
+      }
+      if (req.query.view && req.query.view === "OVERDUE") {
+        query = query.where("status").equals("OVERDUE");
+      }
+      if (req.query.view && req.query.view === "ALL") {
+        query = query.where("status").ne("DISMISSED");
+      }
+      if (req.query.requester) {
+        query = query.where("requester").equals(req.query.requester);
+      }
+      if (req.query.q) {
+        const searchRegex = new RegExp(req.query.q as string, "i");
+        query = query.where("title").regex(searchRegex);
+      }
+
+      // Pagination
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 50;
+      const skip = (page - 1) * pageSize;
+
+      const commitments = await query
+        .sort({ updated_at: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean<Commitment[]>();
+
+      res.json({ commitments: commitments || [] });
+    } catch (error) {
+      console.error("Error fetching commitments:", error);
+      res.status(500).json({ error: "Failed to fetch commitments" });
+    }
+  });
+
+  app.get("/api/commitments/:id", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const commitment = await CommitmentModel.findOne({
+        id: req.params.id,
+        user_id: userId,
+      }).lean<Commitment>();
+
+      if (!commitment) {
+        return res.status(404).json({ error: "Commitment not found" });
+      }
+
+      const evidence = await EvidenceModel.find({
+        commitment_id: req.params.id,
+      }).lean<Evidence[]>();
+
+      res.json({ commitment, evidence: evidence || [] });
+    } catch (error) {
+      console.error("Error fetching commitment detail:", error);
+      res.status(500).json({ error: "Failed to fetch commitment" });
+    }
+  });
+
+  app.get("/api/commitments/:id/evidence", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const evidence = await EvidenceModel.find({
+        commitment_id: req.params.id,
+      }).lean<Evidence[]>();
+
+      res.json(evidence || []);
+    } catch (error) {
+      console.error("Error fetching evidence:", error);
+      res.status(500).json({ error: "Failed to fetch evidence" });
+    }
+  });
+
+  app.post("/api/commitments/:id/confirm", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const commitment = await CommitmentModel.findOneAndUpdate(
+        { id: req.params.id, user_id: userId },
+        {
+          status: "CONFIRMED",
+          updated_at: new Date(),
+        },
+        { new: true }
+      ).lean<Commitment>();
+
+      if (!commitment) {
+        return res.status(404).json({ error: "Commitment not found" });
+      }
+
+      res.json(commitment);
+    } catch (error) {
+      console.error("Error confirming commitment:", error);
+      res.status(500).json({ error: "Failed to confirm commitment" });
+    }
+  });
+
+  app.post("/api/commitments/:id/dismiss", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const commitment = await CommitmentModel.findOneAndUpdate(
+        { id: req.params.id, user_id: userId },
+        {
+          status: "DISMISSED",
+          updated_at: new Date(),
+        },
+        { new: true }
+      ).lean<Commitment>();
+
+      if (!commitment) {
+        return res.status(404).json({ error: "Commitment not found" });
+      }
+
+      res.json(commitment);
+    } catch (error) {
+      console.error("Error dismissing commitment:", error);
+      res.status(500).json({ error: "Failed to dismiss commitment" });
+    }
+  });
+
+  app.post("/api/commitments/:id/mark-complete", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const commitment = await CommitmentModel.findOneAndUpdate(
+        { id: req.params.id, user_id: userId },
+        {
+          status: "COMPLETED",
+          updated_at: new Date(),
+        },
+        { new: true }
+      ).lean<Commitment>();
+
+      if (!commitment) {
+        return res.status(404).json({ error: "Commitment not found" });
+      }
+
+      res.json(commitment);
+    } catch (error) {
+      console.error("Error marking commitment complete:", error);
+      res.status(500).json({ error: "Failed to mark commitment complete" });
+    }
+  });
+
+  app.patch("/api/commitments/:id", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const commitment = await CommitmentModel.findOneAndUpdate(
+        { id: req.params.id, user_id: userId },
+        {
+          ...req.body,
+          updated_at: new Date(),
+        },
+        { new: true }
+      ).lean<Commitment>();
+
+      if (!commitment) {
+        return res.status(404).json({ error: "Commitment not found" });
+      }
+
+      res.json(commitment);
+    } catch (error) {
+      console.error("Error updating commitment:", error);
+      res.status(500).json({ error: "Failed to update commitment" });
+    }
+  });
+
+  // ============================================================================
+  // DRAFT ENDPOINTS
+  // ============================================================================
+
+  app.get("/api/drafts", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      let query = CommunicationDraftModel.find();
+
+      if (req.query.status) {
+        query = query.where("status").equals(req.query.status);
+      } else {
+        query = query.where("status").equals("queued");
+      }
+
+      const drafts = await query.lean<CommunicationDraft[]>();
+
+      const items = await Promise.all(
+        (drafts || []).map(async (draft) => {
+          const commitment = await CommitmentModel.findOne({
+            id: draft.commitment_id,
+            user_id: userId,
+          }).lean<Commitment>();
+          return {
+            draft,
+            commitment: commitment || null,
+            createdAtLabel: new Date(draft.created_at).toLocaleString(),
+          };
+        })
       );
+
+      res.json({ items: items.filter((item) => item.commitment !== null) });
+    } catch (error) {
+      console.error("Error fetching drafts:", error);
+      res.status(500).json({ error: "Failed to fetch drafts" });
     }
+  });
 
-    if (sortBy === "deadline") {
-      filtered.sort((a, b) => {
-        const aDeadline = a.deadline?.getTime() || Infinity;
-        const bDeadline = b.deadline?.getTime() || Infinity;
-        return aDeadline - bDeadline;
-      });
+  app.post("/api/drafts/:id/approve", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const draftToApprove = await CommunicationDraftModel.findOne({
+        id: req.params.id,
+      }).lean<CommunicationDraft>();
+
+      if (!draftToApprove) {
+        return res.status(404).json({ error: "Draft not found" });
+      }
+
+      const draft = await CommunicationDraftModel.findOneAndUpdate(
+        { id: req.params.id },
+        {
+          status: "approved_sent",
+          sent_at: new Date(),
+          final_sent_content: draftToApprove.content,
+        },
+        { new: true }
+      ).lean<CommunicationDraft>();
+
+      res.json(draft);
+    } catch (error) {
+      console.error("Error approving draft:", error);
+      res.status(500).json({ error: "Failed to approve draft" });
     }
-
-    const pageNum = parseInt(page as string) || 1;
-    const pageSizeNum = parseInt(pageSize as string) || 20;
-    const start = (pageNum - 1) * pageSizeNum;
-    const paginated = filtered.slice(start, start + pageSizeNum);
-    const pageCount = Math.ceil(filtered.length / pageSizeNum);
-
-    // Return commitments directly as per hook expectation
-    res.json({
-      commitments: paginated,
-      total: filtered.length,
-      page: pageNum,
-      pageCount,
-      hasNextPage: pageNum < pageCount
-    });
   });
 
-  app.get("/api/commitments/:id", (req: Request, res: Response) => {
-    const commitment = mockCommitments[req.params.id];
-    if (!commitment) return res.status(404).json({ error: "Not found" });
-    res.json({ commitment, evidence: mockEvidence[req.params.id] || [] });
+  app.post("/api/drafts/:id/discard", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const draft = await CommunicationDraftModel.findOneAndUpdate(
+        { id: req.params.id },
+        { status: "discarded" },
+        { new: true }
+      ).lean<CommunicationDraft>();
+
+      if (!draft) {
+        return res.status(404).json({ error: "Draft not found" });
+      }
+
+      res.json(draft);
+    } catch (error) {
+      console.error("Error discarding draft:", error);
+      res.status(500).json({ error: "Failed to discard draft" });
+    }
   });
 
-  app.get("/api/commitments/:id/evidence", (req: Request, res: Response) => {
-    res.json(mockEvidence[req.params.id] || []);
+  app.post("/api/drafts/:id/snooze", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const draft = await CommunicationDraftModel.findOneAndUpdate(
+        { id: req.params.id },
+        { status: "snoozed" },
+        { new: true }
+      ).lean<CommunicationDraft>();
+
+      if (!draft) {
+        return res.status(404).json({ error: "Draft not found" });
+      }
+
+      res.json(draft);
+    } catch (error) {
+      console.error("Error snoozing draft:", error);
+      res.status(500).json({ error: "Failed to snooze draft" });
+    }
   });
 
-  app.post("/api/commitments/:id/confirm", (req: Request, res: Response) => {
-    const commitment = mockCommitments[req.params.id];
-    if (!commitment) return res.status(404).json({ error: "Not found" });
-    commitment.status = "CONFIRMED";
-    commitment.updated_at = new Date();
-    res.json(commitment);
+  app.post("/api/drafts/:id/send", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const { content } = req.body;
+
+      const draft = await CommunicationDraftModel.findOneAndUpdate(
+        { id: req.params.id },
+        {
+          status: "edited_sent",
+          sent_at: new Date(),
+          final_sent_content: content,
+        },
+        { new: true }
+      ).lean<CommunicationDraft>();
+
+      if (!draft) {
+        return res.status(404).json({ error: "Draft not found" });
+      }
+
+      res.json(draft);
+    } catch (error) {
+      console.error("Error sending draft:", error);
+      res.status(500).json({ error: "Failed to send draft" });
+    }
   });
 
-  app.post("/api/commitments/:id/dismiss", (req: Request, res: Response) => {
-    const commitment = mockCommitments[req.params.id];
-    if (!commitment) return res.status(404).json({ error: "Not found" });
-    commitment.status = "DISMISSED";
-    commitment.updated_at = new Date();
-    res.json(commitment);
-  });
+  // ============================================================================
+  // CONFIRMATION INBOX
+  // ============================================================================
 
-  app.post("/api/commitments/:id/mark-complete", (req: Request, res: Response) => {
-    const commitment = mockCommitments[req.params.id];
-    if (!commitment) return res.status(404).json({ error: "Not found" });
-    commitment.status = "COMPLETED";
-    commitment.updated_at = new Date();
-    res.json(commitment);
-  });
+  app.get("/api/confirmations", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
 
-  app.get("/api/drafts", (req: Request, res: Response) => {
-    const drafts = Object.values(mockDrafts).map((draft) => ({
-      draft,
-      commitment: mockCommitments[draft.commitment_id],
-      draftTypeLabel: draft.draft_type,
-      createdAtLabel: "just now",
-      isApprovable: draft.status === "queued",
-    }));
-    res.json({ items: drafts, totalPending: drafts.length, countByType: {} });
-  });
+      const commitments = await CommitmentModel.find({
+        user_id: userId,
+        status: { $in: ["DETECTED", "PENDING"] },
+        confidence_score: { $gte: 0.4, $lt: 0.75 },
+      }).lean<Commitment[]>();
 
-  app.post("/api/drafts/:id/approve", (req: Request, res: Response) => {
-    const draft = mockDrafts[req.params.id];
-    if (!draft) return res.status(404).json({ error: "Not found" });
-    draft.status = "approved_sent";
-    draft.sent_at = new Date();
-    draft.final_sent_content = draft.content;
-    res.json(draft);
-  });
-
-  app.post("/api/drafts/:id/discard", (req: Request, res: Response) => {
-    const draft = mockDrafts[req.params.id];
-    if (!draft) return res.status(404).json({ error: "Not found" });
-    draft.status = "discarded";
-    res.json(draft);
-  });
-
-  app.post("/api/drafts/:id/snooze", (req: Request, res: Response) => {
-    const draft = mockDrafts[req.params.id];
-    if (!draft) return res.status(404).json({ error: "Not found" });
-    draft.status = "snoozed";
-    res.json(draft);
-  });
-
-  app.post("/api/drafts/:id/send", (req: Request, res: Response) => {
-    const draft = mockDrafts[req.params.id];
-    if (!draft) return res.status(404).json({ error: "Not found" });
-    const { content } = req.body;
-    draft.status = "approved_sent";
-    draft.sent_at = new Date();
-    draft.final_sent_content = content || draft.content;
-    res.json(draft);
-  });
-
-  app.get("/api/confirmations", (req: Request, res: Response) => {
-    const items = Object.values(mockCommitments)
-      .filter((c) => c.status === "DETECTED" && c.confidence_score >= 0.4 && c.confidence_score < 0.9)
-      .map((c) => ({
+      const items = (commitments || []).map((c) => ({
         commitment: c,
         confidenceScore: c.confidence_score,
-        confidenceTier: c.confidence_score >= 0.7 ? "HIGH" : c.confidence_score >= 0.5 ? "MEDIUM" : "LOW",
-        extractionReasoning: "Extracted from email",
-        sourcePreview: c.description.substring(0, 100),
-        isActedUpon: false,
+        extractionReasoning: "Detected from email message via Gemini AI reasoning pipeline.",
+        sourcePreview: `"${c.description.substring(0, 120)}..."`,
       }));
-    res.json({ items, totalPending: items.length });
+
+      res.json({ items });
+    } catch (error) {
+      console.error("Error fetching confirmations:", error);
+      res.status(500).json({ error: "Failed to fetch confirmations" });
+    }
   });
 
-  app.get("/api/notifications", (req: Request, res: Response) => {
-    const notifications = mockAuditLogs.map((log) => ({
-      id: log.id,
-      commitment_id: log.commitment_id,
-      eventType: log.event_type,
-      title: `Status changed to ${log.after_state.status}`,
-      message: mockCommitments[log.commitment_id]?.title || "Unknown",
-      severity: "info" as const,
-      timestamp: log.timestamp,
-      isRead: false,
-      actionLink: `/commitments/${log.commitment_id}`,
-    }));
-    res.json({ notifications, unreadCount: notifications.length, hasMore: false });
+  // ============================================================================
+  // NOTIFICATIONS
+  // ============================================================================
+
+  app.get("/api/notifications", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const auditLogs = await AuditLogEntryModel.find({
+        commitment_id: { $exists: true },
+      })
+        .sort({ timestamp: -1 })
+        .limit(50)
+        .lean<AuditLogEntry[]>();
+
+      const notifications = await Promise.all(
+        (auditLogs || []).map(async (log) => {
+          const commitment = await CommitmentModel.findOne({
+            id: log.commitment_id,
+          }).lean<Commitment>();
+          return {
+            id: log.id,
+            title: getEventTitle(log.event_type),
+            message: commitment?.title || "Unknown commitment",
+            eventType: log.event_type,
+            severity: getSeverity(log.event_type),
+            timestamp: log.timestamp,
+            isRead: false,
+            actionLink: commitment ? `/commitments/${commitment.id}` : null,
+          };
+        })
+      );
+
+      res.json({ notifications });
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
   });
 
-  app.get("/api/stats", (req: Request, res: Response) => {
-    const commitments = Object.values(mockCommitments);
-    res.json({
-      total: commitments.length,
-      pending: commitments.filter((c) => c.status === "PENDING").length,
-      atRisk: commitments.filter((c) => c.confidence_score < 0.7).length,
-      dueToday: 1,
-      completed: commitments.filter((c) => c.status === "COMPLETED").length,
-      overdue: commitments.filter((c) => c.status === "OVERDUE").length,
-    });
+  // ============================================================================
+  // STATISTICS
+  // ============================================================================
+
+  app.get("/api/stats", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+
+      const total = await CommitmentModel.countDocuments({ user_id: userId, status: { $ne: "DISMISSED" } });
+      const completed = await CommitmentModel.countDocuments({
+        user_id: userId,
+        status: "COMPLETED",
+      });
+      const overdue = await CommitmentModel.countDocuments({
+        user_id: userId,
+        status: "OVERDUE",
+      });
+      const dueToday = await CommitmentModel.countDocuments({
+        user_id: userId,
+        status: { $in: ["PENDING", "CONFIRMED", "DETECTED", "AT_RISK"] },
+      });
+
+      const atRiskCommitments = await CommitmentModel.find({
+        user_id: userId,
+        status: { $ne: "DISMISSED" },
+      }).lean<Commitment[]>();
+      const atRisk = (atRiskCommitments || []).filter(
+        (c) => c.status === "AT_RISK" || c.confidence_score < 0.75
+      ).length;
+
+      res.json({
+        total,
+        atRisk,
+        dueToday,
+        completed,
+        overdue,
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      res.status(500).json({
+        total: 0,
+        atRisk: 0,
+        dueToday: 0,
+        completed: 0,
+        overdue: 0,
+      });
+    }
   });
 
-  app.get("/api/analytics", (req: Request, res: Response) => {
-    const commitments = Object.values(mockCommitments);
-    const completed = commitments.filter((c) => c.status === "COMPLETED");
-
-    res.json({
-      completionRate: Math.round((completed.length / commitments.length) * 100),
-      onTimeCompletion: 75,
-      avgTimeToComplete: 3,
-      requesterStats: [
-        { requester: "alice@example.com", count: 2, completed: 1, completionRate: 50 },
-        { requester: "bob@example.com", count: 1, completed: 0, completionRate: 0 },
-        { requester: "charlie@example.com", count: 1, completed: 0, completionRate: 0 },
-      ],
-    });
-  });
+  // ============================================================================
+  // SETTINGS
+  // ============================================================================
 
   app.get("/api/settings", (req: Request, res: Response) => {
+    const userId = getUserId(req);
     res.json({
-      notifications: { onOverdue: true, onAtRisk: true, quietHours: { start: 22, end: 8 } },
-      risk: { riskWindow: 25, atRiskThreshold: 0.65 },
-      integrations: [
-        { name: "gmail", status: "connected" },
-        { name: "github", status: "connected" },
-        { name: "google_calendar", status: "connected" },
-      ],
-      profile: { name: "Demo User", email: "demo@example.com", timezone: "America/New_York" },
+      profile: {
+        name: "Demo User",
+        email: "demo@example.com",
+        timezone: "America/New_York",
+      },
+      integrations: {
+        gmail: { connected: true },
+        github: { connected: false },
+        google_calendar: { connected: false },
+      },
+      notification_preferences: {
+        email_on_overdue: true,
+        email_on_completion: false,
+        slack_notifications: false,
+      },
     });
   });
 
@@ -396,123 +528,146 @@ export function registerDashboardRoutes(app: Express): void {
   });
 
   // ============================================================================
-  // GMAIL OAUTH ROUTES
+  // OAUTH - GMAIL
   // ============================================================================
 
   app.get("/api/integrations/auth/gmail", (req: Request, res: Response) => {
     const state = randomBytes(32).toString("hex");
     oauthStateStore.set(state, { createdAt: Date.now() });
 
+    const authUrl = generateAuthorizationUrl(state);
+    res.json({ authUrl });
+  });
+
+  app.get("/integrations/connect/gmail/callback", async (req: Request, res: Response) => {
+    const { code, state } = req.query;
+
+    if (!code || typeof code !== "string" || !state || typeof state !== "string") {
+      return res.status(400).send("Missing code or state parameter");
+    }
+
+    const storedState = oauthStateStore.get(state);
+    if (!storedState || Date.now() - storedState.createdAt > 10 * 60 * 1000) {
+      return res.status(400).send("Invalid or expired state");
+    }
+
     try {
-      const authUrl = generateAuthorizationUrl(state);
-      res.json({ authUrl });
+      const { tokens } = await exchangeCodeForTokens(code, state);
+      const userId = getUserId(req);
+
+      await ensureDb();
+
+      await IntegrationModel.findOneAndUpdate(
+        { user_id: userId, provider: "gmail" },
+        {
+          id: `int_gmail_${userId}`,
+          user_id: userId,
+          provider: "gmail",
+          auth_token: JSON.stringify(tokens),
+          scopes: tokens.scopes,
+          status: "connected",
+          last_synced_at: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+
+      syncGmailMessages(userId).catch((err) =>
+        console.error("Initial Gmail scan error:", err)
+      );
+
+      res.redirect("/oauth-success");
     } catch (error) {
-      console.error("Error generating authorization URL:", error);
-      res.status(500).json({
-        error: "Failed to generate authorization URL",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unknown error occurred",
+      console.error("OAuth error:", error);
+      res.redirect("/oauth-error");
+    }
+  });
+
+  // ============================================================================
+  // INTEGRATIONS & MANUAL SYNC
+  // ============================================================================
+
+  app.post("/api/integrations/sync/gmail", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+      const result = await syncGmailMessages(userId);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Manual Gmail sync error:", error);
+      res.status(500).json({ error: "Failed to sync Gmail messages" });
+    }
+  });
+
+  app.get("/api/integrations/status/:provider", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+      const { provider } = req.params;
+
+      const integration = await IntegrationModel.findOne({
+        user_id: userId,
+        provider,
+      }).lean();
+
+      if (!integration) {
+        return res.json({
+          provider,
+          status: "disconnected",
+          connected: false,
+        });
+      }
+
+      res.json({
+        provider,
+        status: integration.status,
+        connected: integration.status === "connected",
+        last_synced_at: integration.last_synced_at,
       });
-    }
-  });
-
-  app.get("/integrations/connect/gmail/callback", async (
-    req: Request,
-    res: Response
-  ) => {
-    const { code, state, error } = req.query;
-
-    // Handle OAuth errors
-    if (error) {
-      const errorDescription =
-        req.query.error_description ||
-        "Unknown error";
-      console.error(`OAuth error: ${error} - ${errorDescription}`);
-      return res.redirect(
-        `/oauth-error?error=${encodeURIComponent(String(error))}&description=${encodeURIComponent(String(errorDescription))}`
-      );
-    }
-
-    // Validate state parameter
-    if (!state || typeof state !== "string") {
-      console.error("Invalid or missing state parameter");
-      return res.redirect(
-        "/oauth-error?error=invalid_state&description=Missing+or+invalid+state+parameter"
-      );
-    }
-
-    if (!oauthStateStore.has(state)) {
-      console.error("State parameter not found or expired");
-      return res.redirect(
-        "/oauth-error?error=state_expired&description=State+parameter+expired+or+invalid"
-      );
-    }
-
-    // Remove used state (prevent replay attacks)
-    oauthStateStore.delete(state);
-
-    // Validate authorization code
-    if (!code || typeof code !== "string") {
-      console.error("Invalid or missing authorization code");
-      return res.redirect(
-        "/oauth-error?error=no_code&description=Missing+authorization+code"
-      );
-    }
-
-    try {
-      // Exchange code for tokens
-      const { tokens, userId } = await exchangeCodeForTokens(
-        code,
-        state
-      );
-
-      // Store tokens (mock storage)
-      storeTokens(userId, tokens);
-
-      // Redirect back to dashboard with success message
-      res.redirect(
-        `/oauth-success?provider=gmail&user_id=${encodeURIComponent(userId)}&scopes=${encodeURIComponent(tokens.scopes.join(","))}`
-      );
     } catch (error) {
-      console.error("Token exchange failed:", error);
-      return res.redirect(
-        `/oauth-error?error=token_exchange_failed&description=${encodeURIComponent(
-          error instanceof Error
-            ? error.message
-            : "Unknown error occurred"
-        )}`
-      );
+      console.error("Error checking integration status:", error);
+      res.status(500).json({ error: "Failed to check integration status" });
     }
   });
 
-  app.get("/api/integrations/status/:provider", (req: Request, res: Response) => {
-    const { provider } = req.params;
+  app.post("/api/integrations/disconnect/:provider", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await ensureDb();
+      const { provider } = req.params;
 
-    // For demo, return mock integration statuses
-    const integrations: Record<string, any> = {
-      gmail: { provider: "gmail", status: "connected", lastSync: new Date() },
-      github: { provider: "github", status: "connected", lastSync: new Date() },
-      google_calendar: {
-        provider: "google_calendar",
-        status: "connected",
-        lastSync: new Date(),
-      },
-    };
+      await IntegrationModel.deleteOne({
+        user_id: userId,
+        provider,
+      });
 
-    if (provider in integrations) {
-      res.json(integrations[provider]);
-    } else {
-      res
-        .status(404)
-        .json({ error: "Integration not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error disconnecting integration:", error);
+      res.status(500).json({ error: "Failed to disconnect integration" });
     }
   });
+}
 
-  app.post("/api/integrations/disconnect/:provider", (req: Request, res: Response) => {
-    const { provider } = req.params;
-    console.log(`Disconnecting integration: ${provider}`);
-    res.json({ success: true, message: `Disconnected from ${provider}` });
-  });
+function getEventTitle(eventType: string): string {
+  const titles: Record<string, string> = {
+    status_change: "Status Updated",
+    priority_recalc: "Priority Recalculated",
+    evidence_matched: "Evidence Found",
+    draft_generated: "Draft Created",
+    draft_sent: "Draft Sent",
+  };
+  return titles[eventType] || "Event";
+}
+
+function getSeverity(eventType: string): "error" | "warning" | "info" {
+  switch (eventType) {
+    case "status_change":
+      return "warning";
+    case "draft_sent":
+      return "info";
+    case "evidence_matched":
+      return "info";
+    default:
+      return "info";
+  }
 }

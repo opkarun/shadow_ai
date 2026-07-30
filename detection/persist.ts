@@ -7,10 +7,10 @@
  */
 
 import { randomUUID } from "crypto";
-import { logger } from "../shared/utils";
-import { connectMongo } from "../shared/db/connect";
-import { CommitmentModel } from "../shared/db/models";
-import type { Commitment, CommitmentStatus } from "../shared/types";
+import { logger } from "../shared/utils/index.js";
+import { connectMongo } from "../shared/db/connect.js";
+import { CommitmentModel } from "../shared/db/models.js";
+import type { Commitment, CommitmentStatus } from "../shared/types/index.js";
 import type { ScoredCommitment } from "./pipeline";
 
 /**
@@ -20,12 +20,6 @@ import type { ScoredCommitment } from "./pipeline";
  * - HIGH → CONFIRMED (auto-create, no user approval needed)
  * - MEDIUM → DETECTED (wait for user confirmation)
  * - LOW → DISMISSED (not shown to user)
- *
- * Uses shared state machine to ensure valid status transitions.
- *
- * @param userId - User ID who owns this commitment
- * @param scored - Scored commitment from pipeline
- * @returns Persisted Commitment with ID
  */
 export async function persistScoredCommitment(
   userId: string,
@@ -33,7 +27,6 @@ export async function persistScoredCommitment(
 ): Promise<Commitment> {
   await connectMongo();
 
-  // Determine initial status based on confidence tier
   const initialStatus = getInitialStatus(scored.confidenceTier);
 
   logger.info("Persisting scored commitment", {
@@ -43,23 +36,47 @@ export async function persistScoredCommitment(
     status: initialStatus,
   });
 
-  // Create the commitment record
   const commitmentId = randomUUID();
   const now = new Date();
+
+  // Safely parse deadline into a valid Date object or null
+  let parsedDeadline: Date | null = null;
+  if (scored.deadline) {
+    const d = new Date(scored.deadline);
+    if (!isNaN(d.getTime())) {
+      parsedDeadline = d;
+    } else {
+      const lower = String(scored.deadline).toLowerCase();
+      const refDate = new Date();
+      if (lower.includes("today") || lower.includes("eod")) {
+        parsedDeadline = new Date(refDate.setHours(23, 59, 59, 999));
+      } else if (lower.includes("tomorrow")) {
+        parsedDeadline = new Date(refDate.setDate(refDate.getDate() + 1));
+      } else if (lower.includes("friday")) {
+        parsedDeadline = new Date(refDate.setDate(refDate.getDate() + (5 - refDate.getDay() + 7) % 7));
+      }
+    }
+  }
+
+  // Ensure priority_score is a valid number (1-5, default 3)
+  const priorityScore =
+    typeof scored.priority === "number" && !isNaN(scored.priority)
+      ? scored.priority
+      : 3;
 
   const commitment: Commitment = {
     id: commitmentId,
     user_id: userId,
     title: scored.task,
-    description: scored.description,
-    requester: scored.owner,
-    source: scored.source as "gmail" | "github" | "manual",
-    source_reference: "unknown", // Would be set by the ingestion layer
-    deadline: scored.deadline ? new Date(scored.deadline) : null,
+    description: scored.description || scored.task,
+    requester: scored.owner || "Requester",
+    source: (scored.source as "gmail" | "github" | "manual") || "gmail",
+    source_reference: (scored as any).sourceReference || `gmail_msg_${randomUUID()}`,
+    deadline: parsedDeadline,
     status: initialStatus,
-    confidence_score: scored.confidenceScore,
-    priority_score: scored.priority,
-    verification_method: scored.verificationMethod,
+    confidence_score: scored.confidenceScore ?? 0.7,
+    priority_score: priorityScore,
+    verification_method: scored.verificationMethod || "manual",
     linked_repo: scored.linkedRepo || null,
     created_at: now,
     updated_at: now,
@@ -78,10 +95,6 @@ export async function persistScoredCommitment(
 
 /**
  * Persist multiple scored commitments in batch.
- *
- * @param userId - User ID who owns these commitments
- * @param scoredCommitments - Array of scored commitments
- * @returns Array of persisted Commitments
  */
 export async function persistScoredCommitmentsBatch(
   userId: string,
@@ -106,7 +119,6 @@ export async function persistScoredCommitmentsBatch(
         error: errorMessage,
       });
 
-      // Continue with next commitment rather than failing entire batch
       continue;
     }
   }
@@ -121,28 +133,16 @@ export async function persistScoredCommitmentsBatch(
 
 /**
  * Determine initial commitment status based on confidence tier.
- *
- * This implements FR-1.4 from PRODUCT_SPEC:
- * - HIGH confidence → CONFIRMED (auto-create)
- * - MEDIUM confidence → DETECTED (await user confirmation)
- * - LOW confidence → DISMISSED (not surfaced)
  */
 function getInitialStatus(tier: "HIGH" | "MEDIUM" | "LOW"): CommitmentStatus {
   switch (tier) {
     case "HIGH":
-      // Auto-create high-confidence commitments
       return "CONFIRMED";
-
     case "MEDIUM":
-      // Surface medium-confidence for user confirmation
       return "DETECTED";
-
     case "LOW":
-      // Silently dismiss low-confidence candidates
       return "DISMISSED";
-
     default:
-      // Conservative fallback
       return "DETECTED";
   }
 }
