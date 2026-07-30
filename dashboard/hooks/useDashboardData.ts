@@ -69,8 +69,10 @@ function parseCommitment(data: unknown): Commitment {
  * Hook to fetch commitments list
  */
 export function useFetchCommitments(query?: CommitmentListQuery): void {
-  const { setCommitments, setLoading, setError, setLastSyncedAt } =
-    useDashboardStore();
+  const setCommitments = useDashboardStore((s) => s.setCommitments);
+  const setLoading = useDashboardStore((s) => s.setLoading);
+  const setError = useDashboardStore((s) => s.setError);
+  const setLastSyncedAt = useDashboardStore((s) => s.setLastSyncedAt);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -116,7 +118,9 @@ export function useFetchCommitments(query?: CommitmentListQuery): void {
  * Hook to fetch dashboard statistics
  */
 export function useFetchStats(): void {
-  const { setStats, setLoading, setError } = useDashboardStore();
+  const setStats = useDashboardStore((s) => s.setStats);
+  const setLoading = useDashboardStore((s) => s.setLoading);
+  const setError = useDashboardStore((s) => s.setError);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -157,7 +161,9 @@ export function useFetchStats(): void {
  * Hook to fetch approval queue
  */
 export function useFetchApprovalQueue(): void {
-  const { setApprovalQueue, setLoading, setError } = useDashboardStore();
+  const setApprovalQueue = useDashboardStore((s) => s.setApprovalQueue);
+  const setLoading = useDashboardStore((s) => s.setLoading);
+  const setError = useDashboardStore((s) => s.setError);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -200,7 +206,9 @@ export function useFetchApprovalQueue(): void {
  * Hook to fetch confirmation inbox
  */
 export function useFetchConfirmationInbox(): void {
-  const { setConfirmationItems, setLoading, setError } = useDashboardStore();
+  const setConfirmationItems = useDashboardStore((s) => s.setConfirmationItems);
+  const setLoading = useDashboardStore((s) => s.setLoading);
+  const setError = useDashboardStore((s) => s.setError);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -243,7 +251,9 @@ export function useFetchConfirmationInbox(): void {
  * Hook to fetch notifications
  */
 export function useFetchNotifications(): void {
-  const { setNotifications, setLoading, setError } = useDashboardStore();
+  const setNotifications = useDashboardStore((s) => s.setNotifications);
+  const setLoading = useDashboardStore((s) => s.setLoading);
+  const setError = useDashboardStore((s) => s.setError);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -291,16 +301,14 @@ export function useFetchNotifications(): void {
  * Hook to refresh all dashboard data
  */
 export function useRefreshDashboard(): () => Promise<void> {
-  const {
-    setLoading,
-    setError,
-    setCommitments,
-    setStats,
-    setApprovalQueue,
-    setConfirmationItems,
-    setNotifications,
-    setLastSyncedAt,
-  } = useDashboardStore();
+  const setLoading = useDashboardStore((s) => s.setLoading);
+  const setError = useDashboardStore((s) => s.setError);
+  const setCommitments = useDashboardStore((s) => s.setCommitments);
+  const setStats = useDashboardStore((s) => s.setStats);
+  const setApprovalQueue = useDashboardStore((s) => s.setApprovalQueue);
+  const setConfirmationItems = useDashboardStore((s) => s.setConfirmationItems);
+  const setNotifications = useDashboardStore((s) => s.setNotifications);
+  const setLastSyncedAt = useDashboardStore((s) => s.setLastSyncedAt);
 
   return useCallback(async () => {
     try {

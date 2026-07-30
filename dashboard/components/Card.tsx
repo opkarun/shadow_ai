@@ -1,7 +1,7 @@
 /**
  * Card Component
  *
- * Reusable card wrapper with glassmorphism styling.
+ * Reusable card wrapper with modern dark glassmorphism styling.
  */
 
 import React, { ReactNode, HTMLAttributes } from "react";
@@ -30,20 +30,25 @@ export function Card({
   return (
     <div
       className={`
-        rounded-lg bg-slate-900/30 border border-slate-800/50 p-6
-        ${isClickable ? "card-hover cursor-pointer" : ""}
+        rounded-2xl bg-slate-900/40 border border-slate-800/80 p-5 md:p-6 shadow-xl backdrop-blur-md
+        transition-all duration-300
+        ${
+          isClickable
+            ? "hover:bg-slate-900/80 hover:border-slate-700/80 hover:shadow-indigo-500/5 cursor-pointer"
+            : ""
+        }
         ${className}
       `}
       {...props}
     >
       {header && (
-        <div className="mb-6 pb-6 border-b border-slate-800/50">{header}</div>
+        <div className="mb-5 pb-4 border-b border-slate-800/80">{header}</div>
       )}
 
       <div>{children}</div>
 
       {footer && (
-        <div className="mt-6 pt-6 border-t border-slate-800/50">{footer}</div>
+        <div className="mt-5 pt-4 border-t border-slate-800/80">{footer}</div>
       )}
     </div>
   );

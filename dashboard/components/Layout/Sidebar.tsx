@@ -2,173 +2,177 @@
  * Sidebar Navigation Component
  *
  * Main navigation sidebar for the Dashboard.
- * Contains navigation links, user profile, and integration status.
+ * Displays page navigation, live metrics badges, and connection status.
  */
 
 import React from "react";
 import { useRouter, useCurrentPage } from "../../routing/router";
 import { useDashboardStore } from "../../store";
+import {
+  IconDashboard,
+  IconApproval,
+  IconConfirmation,
+  IconNotification,
+  IconHistory,
+  IconAnalytics,
+  IconSettings,
+  IconShield,
+} from "../Icons";
 
 interface SidebarProps {
-  /** Whether the sidebar is collapsed on mobile */
-  isCollapsed?: boolean;
+  /** Called when a nav item is clicked (for closing mobile menu) */
+  onNavItemClick?: () => void;
 }
 
-/**
- * Navigation item in the sidebar
- */
 interface NavItem {
   id: string;
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   badge?: number;
+  badgeVariant?: "indigo" | "amber" | "purple";
   onClick: () => void;
   isActive?: boolean;
 }
 
-export function Sidebar({ isCollapsed = false }: SidebarProps): JSX.Element {
+export function Sidebar({ onNavItemClick }: SidebarProps): JSX.Element {
   const navigate = useRouter((state) => state.navigate);
   const currentPage = useCurrentPage();
   const { approvalQueue, confirmationItems } = useDashboardStore();
+
+  const handleNavClick = (page: string) => {
+    navigate(page as any);
+    onNavItemClick?.();
+  };
 
   const navItems: NavItem[] = [
     {
       id: "dashboard",
       label: "Dashboard",
-      icon: "📊",
-      onClick: () => navigate("dashboard"),
+      icon: <IconDashboard className="w-5 h-5" />,
+      onClick: () => handleNavClick("dashboard"),
       isActive: currentPage === "dashboard",
     },
     {
       id: "approval-queue",
       label: "Approval Queue",
-      icon: "✓",
-      onClick: () => navigate("approval-queue"),
+      icon: <IconApproval className="w-5 h-5" />,
+      onClick: () => handleNavClick("approval-queue"),
       badge: approvalQueue.length,
+      badgeVariant: "indigo",
       isActive: currentPage === "approval-queue",
     },
     {
       id: "confirmations",
       label: "Confirmations",
-      icon: "?",
-      onClick: () => navigate("confirmations"),
+      icon: <IconConfirmation className="w-5 h-5" />,
+      onClick: () => handleNavClick("confirmations"),
       badge: confirmationItems.length,
+      badgeVariant: "amber",
       isActive: currentPage === "confirmations",
     },
     {
       id: "notifications",
       label: "Notifications",
-      icon: "🔔",
-      onClick: () => navigate("notifications"),
+      icon: <IconNotification className="w-5 h-5" />,
+      onClick: () => handleNavClick("notifications"),
       isActive: currentPage === "notifications",
     },
     {
       id: "history",
-      label: "History",
-      icon: "📚",
-      onClick: () => navigate("history"),
+      label: "History & Archive",
+      icon: <IconHistory className="w-5 h-5" />,
+      onClick: () => handleNavClick("history"),
       isActive: currentPage === "history",
     },
     {
       id: "analytics",
       label: "Analytics",
-      icon: "📈",
-      onClick: () => navigate("analytics"),
+      icon: <IconAnalytics className="w-5 h-5" />,
+      onClick: () => handleNavClick("analytics"),
       isActive: currentPage === "analytics",
     },
     {
       id: "settings",
       label: "Settings",
-      icon: "⚙️",
-      onClick: () => navigate("settings"),
-      isActive: currentPage === "settings",
+      icon: <IconSettings className="w-5 h-5" />,
+      onClick: () => handleNavClick("settings"),
+      isActive: currentPage.startsWith("settings"),
     },
   ];
 
   return (
-    <div
-      className={`flex-shrink-0 border-r border-slate-800/50 overflow-y-auto overflow-x-hidden ${
-        isCollapsed ? "w-20" : "w-64"
-      } hidden md:flex flex-col bg-slate-950`}
-    >
-      {/* Logo section */}
-      <div className="px-6 py-6 border-b border-slate-800/50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white">
-            S
-          </div>
-          {!isCollapsed && (
-            <div>
-              <p className="font-semibold text-slate-100 text-sm">Shadow</p>
-              <p className="text-xs text-slate-500">Commitments</p>
-            </div>
-          )}
+    <aside className="w-full h-full flex flex-col bg-slate-900/60 backdrop-blur-xl border-r border-slate-800/80 select-none">
+      {/* Main Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-1">
+        <div className="px-3 mb-2">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            Overview
+          </p>
         </div>
-      </div>
 
-      {/* Navigation items */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="space-y-1">
-          {navItems.map((item) => (
+        {navItems.map((item) => {
+          const isActive = item.isActive;
+          return (
             <button
               key={item.id}
               onClick={item.onClick}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors group text-sm ${
-                item.isActive
-                  ? "bg-indigo-600/20 text-indigo-300"
-                  : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium relative group ${
+                isActive
+                  ? "bg-gradient-to-r from-indigo-600/30 to-purple-600/20 text-white shadow-lg shadow-indigo-500/10 border border-indigo-500/30 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
               }`}
-              title={isCollapsed ? item.label : undefined}
             >
+              {/* Active Pill Indicator */}
+              {isActive && (
+                <span className="absolute left-0 top-2 bottom-2 w-1 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-r-full"></span>
+              )}
+
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-base flex-shrink-0">{item.icon}</span>
-                {!isCollapsed && (
-                  <span className="font-medium truncate">{item.label}</span>
-                )}
+                <span
+                  className={`transition-colors ${
+                    isActive
+                      ? "text-indigo-400"
+                      : "text-slate-400 group-hover:text-slate-200"
+                  }`}
+                >
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.label}</span>
               </div>
 
-              {!isCollapsed && item.badge !== undefined && item.badge > 0 && (
-                <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-indigo-600/50 text-indigo-200 flex-shrink-0 ml-2">
+              {item.badge !== undefined && item.badge > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${
+                    item.badgeVariant === "amber"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                  }`}
+                >
                   {item.badge}
                 </span>
               )}
             </button>
-          ))}
-        </div>
+          );
+        })}
       </nav>
 
-      {/* Footer section */}
-      <div className="px-3 py-4 border-t border-slate-800/50 space-y-3">
-        {/* Status indicator */}
-        {!isCollapsed && (
-          <div className="px-3 py-2 rounded-lg bg-slate-900/50 border border-slate-800/50">
-            <p className="text-xs text-slate-400 font-medium mb-1.5">
-              Sync Status
-            </p>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500/80"></div>
-              <p className="text-xs text-slate-300">Connected</p>
+      {/* Footer Section */}
+      <div className="p-4 border-t border-slate-800/80 space-y-3 bg-slate-950/40">
+        {/* System Status Card */}
+        <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 block"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 block absolute inset-0 animate-ping opacity-75"></span>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-200">BFF Engine</p>
+              <p className="text-[10px] text-slate-400">Autonomous Active</p>
             </div>
           </div>
-        )}
-
-        {/* User profile */}
-        <button className="w-full px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors flex items-center gap-3 text-left">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-semibold text-white text-sm flex-shrink-0">
-            A
-          </div>
-          {!isCollapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-100 truncate">
-                Ayaan
-              </p>
-              <p className="text-xs text-slate-500 truncate">
-                ayaan@example.com
-              </p>
-            </div>
-          )}
-        </button>
+          <IconShield className="w-4 h-4 text-emerald-400" />
+        </div>
       </div>
-    </div>
+    </aside>
   );
 }

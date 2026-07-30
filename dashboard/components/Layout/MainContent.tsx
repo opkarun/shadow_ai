@@ -1,7 +1,7 @@
 /**
  * Main Content Area Component
  *
- * Responsive content wrapper that adjusts for sidebar and top navigation.
+ * Responsive content wrapper with vertical scroll overflow and structured layout padding.
  */
 
 import React, { ReactNode } from "react";
@@ -19,15 +19,18 @@ export function MainContent({
 }: MainContentProps): JSX.Element {
   return (
     <main
+      role="main"
       className={`
+        w-full
         flex-1
+        h-full
         overflow-y-auto
-        overflow-x-hidden
         bg-slate-950
+        min-h-0
         ${className}
       `}
     >
-      <div className="min-h-full px-6 sm:px-8 lg:px-10 py-8">
+      <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         {children}
       </div>
     </main>

@@ -1,7 +1,8 @@
 /**
  * Analytics & Insights Page
  *
- * Shows commitment analytics, metrics, and insights.
+ * Displays commitment performance metrics, completion velocity,
+ * and stakeholder reliability stats.
  */
 
 import React, { useMemo } from "react";
@@ -9,6 +10,14 @@ import { useDashboardStore } from "../store";
 import { LoadingSkeleton, SkeletonHeader, SkeletonStats } from "../components/LoadingSkeleton";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
+import {
+  IconAnalytics,
+  IconCheck,
+  IconClock,
+  IconSparkles,
+  IconUser,
+  IconTarget,
+} from "../components/Icons";
 import {
   getTimeBasedMetrics,
   getRequesterStats,
@@ -41,190 +50,132 @@ export function Analytics(): JSX.Element {
     .sort((a, b) => b.completed - a.completed)
     .slice(0, 5);
 
-  const leastReliable = requesterStats
-    .sort((a, b) => {
-      const aRate = a.count > 0 ? a.completed / a.count : 0;
-      const bRate = b.count > 0 ? b.completed / b.count : 0;
-      return aRate - bRate;
-    })
-    .slice(0, 5);
-
   return (
-    <div className="space-y-8 animate-fade-in w-full">
+    <div className="space-y-8 animate-fade-in w-full pb-12">
       {/* Header */}
-      <div className="space-y-2 border-b border-slate-800/50 pb-6">
-        <h1 className="text-2xl font-bold text-slate-50">
-          Analytics & Insights
-        </h1>
-        <p className="text-slate-400 text-sm">
-          Track your commitment performance and trends
-        </p>
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <div>
-            <p className="text-sm text-slate-400 font-medium">Completion Rate</p>
-            <p className="text-4xl font-bold text-green-300 mt-3">
-              {Math.round(metrics.completionRate)}%
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Of all commitments completed
-            </p>
-          </div>
-        </Card>
-
-        <Card>
-          <div>
-            <p className="text-sm text-slate-400 font-medium">
-              On-Time Completion
-            </p>
-            <p className="text-4xl font-bold text-blue-300 mt-3">
-              {Math.round(metrics.onTimeCompletionRate)}%
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Finished before deadline
-            </p>
-          </div>
-        </Card>
-
-        <Card>
-          <div>
-            <p className="text-sm text-slate-400 font-medium">
-              Avg. Time to Complete
-            </p>
-            <p className="text-4xl font-bold text-purple-300 mt-3">
-              {metrics.averageTimeToComplete || "—"}
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              {metrics.averageTimeToComplete ? "days" : "No data"}
-            </p>
-          </div>
-        </Card>
-      </div>
-
-      {/* Commitment breakdown */}
-      <Card header={<h2 className="text-lg font-semibold">Commitment Breakdown</h2>}>
-        <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-300">By Requester</span>
-              <span className="text-sm text-slate-500">
-                {requesterStats.length} requesters
-              </span>
-            </div>
-            <div className="space-y-2">
-              {requesterStats.slice(0, 5).map((stats) => (
-                <div
-                  key={stats.requester}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span className="text-slate-300 truncate">
-                    {stats.requester}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-2">
-                      <Badge variant="success" className="text-xs px-2 py-0.5">
-                        {stats.completed}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                        {stats.count}
-                      </Badge>
-                    </div>
-                    <span className="text-slate-500 w-12 text-right">
-                      {stats.count > 0
-                        ? Math.round((stats.completed / stats.count) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-50 tracking-tight flex items-center gap-3">
+            <span>Analytics & Intelligence</span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <IconSparkles className="w-3.5 h-3.5" />
+              Insights Engine
+            </span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Performance metrics, stakeholder velocity, and execution telemetry.
+          </p>
         </div>
-      </Card>
+      </div>
 
-      {/* Top performers */}
-      <Card header={<h2 className="text-lg font-semibold">Top Performers</h2>}>
+      {/* Key Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Completion Rate</span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <IconCheck className="w-5 h-5" />
+            </div>
+          </div>
+          <p className="text-4xl font-black text-emerald-300 mt-2">
+            {Math.round(metrics.completionRate)}%
+          </p>
+          <p className="text-xs text-slate-500 mt-2">Of total detected commitments</p>
+        </div>
+
+        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">On-Time Accuracy</span>
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+              <IconTarget className="w-5 h-5" />
+            </div>
+          </div>
+          <p className="text-4xl font-black text-indigo-300 mt-2">
+            {Math.round(metrics.onTimeCompletionRate)}%
+          </p>
+          <p className="text-xs text-slate-500 mt-2">Delivered before deadline</p>
+        </div>
+
+        <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Average Resolution Speed</span>
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+              <IconClock className="w-5 h-5" />
+            </div>
+          </div>
+          <p className="text-4xl font-black text-purple-300 mt-2">
+            {metrics.averageTimeToComplete ? `${metrics.averageTimeToComplete}d` : "—"}
+          </p>
+          <p className="text-xs text-slate-500 mt-2">Days from detection to closure</p>
+        </div>
+      </div>
+
+      {/* Stakeholder Breakdown Card */}
+      <Card header={<h2 className="text-lg font-bold text-slate-100">Top Stakeholders & Requesters</h2>}>
         <div className="space-y-3">
           {topPerformers.length > 0 ? (
             topPerformers.map((stats, index) => (
               <div
                 key={stats.requester}
-                className="flex items-center justify-between p-3 bg-slate-900/50 rounded border border-slate-700/50"
+                className="flex items-center justify-between p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shadow-md">
                     {index + 1}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-100 truncate">
-                      {stats.requester}
-                    </p>
+                  <div>
+                    <p className="font-bold text-slate-100 text-sm">{stats.requester}</p>
                     <p className="text-xs text-slate-400">
-                      {stats.completed} of {stats.count} completed
+                      {stats.completed} resolved of {stats.count} total
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-lg font-bold text-green-300">
-                    {stats.count > 0
-                      ? Math.round((stats.completed / stats.count) * 100)
-                      : 0}
-                    %
+
+                <div className="text-right">
+                  <p className="text-lg font-black text-emerald-400">
+                    {stats.count > 0 ? Math.round((stats.completed / stats.count) * 100) : 0}%
                   </p>
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-slate-400 text-center py-4">
-              No commitment data yet
+            <p className="text-slate-400 text-center py-6 text-sm">
+              No requester performance data recorded yet.
             </p>
           )}
         </div>
       </Card>
 
-      {/* Tips & recommendations */}
-      <Card
-        className="bg-gradient-to-br from-indigo-600/10 to-purple-600/10 border-indigo-500/20"
-        header={
-          <h2 className="text-lg font-semibold text-indigo-300">
-            💡 Tips & Recommendations
-          </h2>
-        }
-      >
-        <div className="space-y-3">
-          <div>
-            <p className="font-medium text-slate-100 mb-1">
-              📊 Your completion rate is strong
-            </p>
-            <p className="text-sm text-slate-300">
-              Keep up the momentum by continuing to track your commitments
-              consistently.
+      {/* AI AI Strategy Recommendations */}
+      <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-purple-950/30 border border-indigo-500/30 space-y-4">
+        <h2 className="text-base font-bold text-indigo-200 flex items-center gap-2">
+          <IconSparkles className="w-5 h-5 text-indigo-400" />
+          <span>Autonomous Performance Recommendations</span>
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
+            <p className="font-bold text-indigo-300 mb-1">Strong Delivery Velocity</p>
+            <p className="text-slate-400 leading-relaxed">
+              Your overall commitment resolution rate is solid. Keep automated draft approvals active for fast turnaround.
             </p>
           </div>
-          <div>
-            <p className="font-medium text-slate-100 mb-1">
-              ⏰ Review time management
-            </p>
-            <p className="text-sm text-slate-300">
-              Focus on meeting deadlines earlier to reduce stress and increase
-              buffer time.
+
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
+            <p className="font-bold text-amber-300 mb-1">Proactive Buffer Time</p>
+            <p className="text-slate-400 leading-relaxed">
+              Set automated extension requests 24 hours prior to deadline for critical priority tasks.
             </p>
           </div>
-          <div>
-            <p className="font-medium text-slate-100 mb-1">
-              📧 Prioritize high-confidence commitments
-            </p>
-            <p className="text-sm text-slate-300">
-              These are most likely to be real commitments and should take
-              priority in your schedule.
+
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
+            <p className="font-bold text-emerald-300 mb-1">Evidence Linking</p>
+            <p className="text-slate-400 leading-relaxed">
+              Auto-link GitHub pull requests and Slack threads to auto-verify completions without manual status edits.
             </p>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
